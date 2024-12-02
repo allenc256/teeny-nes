@@ -1,0 +1,9 @@
+---
+BasedOnStyle: LLVM
+BinPackArguments: false
+BinPackParameters: false
+PackConstructorInitializers: CurrentLine
+AlignAfterOpenBracket: BlockIndent
+AllowShortCaseLabelsOnASingleLine: true
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
