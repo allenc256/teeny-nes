@@ -39,6 +39,8 @@ private:
 
 class NRom : public Cartridge {
 public:
+  NRom() : rom_{0} {}
+
   void read(std::ifstream &is, const Header &header) {
     if (header.prg_rom_size() == 1) {
       rom_mask_ = ROM_MASK_128;
@@ -63,6 +65,12 @@ public:
     } else {
       return 0;
     }
+  }
+
+  virtual uint8_t poke(
+      [[maybe_unused]] uint16_t address, [[maybe_unused]] uint8_t value
+  ) override {
+    throw std::runtime_error("cannot write to read-only memory");
   }
 
 private:
