@@ -34,3 +34,5 @@
 build/
 .vscode/
 notes/
+*.ipynb
+.ipynb_checkpoints/
