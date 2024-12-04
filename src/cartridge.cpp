@@ -59,7 +59,7 @@ public:
   }
 
   uint8_t peek(uint16_t address) const override {
-    assert(address >= CART_OFFSET);
+    assert(address >= ADDR_START);
     if (address & ROM_BIT) {
       return rom_[address & rom_mask_];
     } else {

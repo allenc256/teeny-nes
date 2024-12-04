@@ -368,29 +368,43 @@ void Cpu::reset() {
   regs_.P |= I_FLAG;
 }
 
-uint8_t Cpu::peek(uint16_t addr) const {
-  if (addr <= RAM_ADDR_MAX) {
+uint8_t Cpu::peek(uint16_t addr) {
+  if (addr < RAM_END) {
     return ram_[addr & RAM_MASK];
-  } else if (addr >= Cartridge::CART_OFFSET) {
+  } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {
+    // TODO: implement "open bus behavior"
+    // (https://www.nesdev.org/wiki/Open_bus_behavior)
+    return 0xff;
+  } else if (addr == Apu::CONT_ADDR) {
+    return apu_.peek_control();
+  } else if (addr >= Cartridge::ADDR_START) {
     return cart_.peek(addr);
   } else {
-    throw std::runtime_error("unsupported memory mapped address");
+    throw std::runtime_error(
+        std::format("unsupported address: peek(${:04X})", addr)
+    );
   }
 }
 
 void Cpu::poke(uint16_t addr, uint8_t value) {
-  if (addr <= RAM_ADDR_MAX) {
+  if (addr < RAM_END) {
     ram_[addr & RAM_MASK] = value;
-  } else if (addr >= Cartridge::CART_OFFSET) {
+  } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {
+    apu_.poke_channel(addr, value);
+  } else if (addr == Apu::CONT_ADDR) {
+    apu_.poke_control(value);
+  } else if (addr >= Cartridge::ADDR_START) {
     cart_.poke(addr, value);
   } else {
-    throw std::runtime_error("unsupported memory mapped address");
+    throw std::runtime_error(
+        std::format("unsupported address: poke(${:04X}, {:02X})", addr, value)
+    );
   }
 }
 
-void Cpu::push8(uint8_t x) { ram_[STACK_OFFSET + regs_.S--] = x; }
+void Cpu::push8(uint8_t x) { ram_[STACK_START + regs_.S--] = x; }
 
-uint8_t Cpu::pop8() { return ram_[STACK_OFFSET + (++regs_.S)]; }
+uint8_t Cpu::pop8() { return ram_[STACK_START + (++regs_.S)]; }
 
 void Cpu::push16(uint16_t x) {
   push8(x >> 8);

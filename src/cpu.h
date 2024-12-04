@@ -1,5 +1,6 @@
 #pragma once
 
+#include "apu.h"
 #include "cartridge.h"
 
 #include <cassert>
@@ -143,7 +144,7 @@ public:
   int64_t          cycles() const { return cycles_; }
   void             set_cycles(int64_t cycles) { cycles_ = cycles; }
 
-  uint8_t     peek(uint16_t addr) const;
+  uint8_t     peek(uint16_t addr);
   void        poke(uint16_t addr, uint8_t value);
   void        push8(uint8_t x);
   void        push16(uint16_t x);
@@ -239,14 +240,15 @@ private:
   uint16_t decode_addr(const OpCode &op);
   uint8_t  decode_mem(const OpCode &op);
 
-  static constexpr int STACK_OFFSET = 0x0100;
-  static constexpr int RAM_SIZE     = 0x0800;
-  static constexpr int RAM_MASK     = 0x07ff;
-  static constexpr int RAM_ADDR_MAX = 0x1fff;
+  static constexpr int RAM_SIZE    = 0x0800;
+  static constexpr int RAM_MASK    = 0x07ff;
+  static constexpr int STACK_START = 0x0100;
+  static constexpr int RAM_END     = 0x2000;
 
   uint8_t    ram_[RAM_SIZE];
   uint64_t   cycles_;
   Registers  regs_;
+  Apu        apu_;
   Cartridge &cart_;
   bool       oops_;
   bool       jump_;

@@ -17,13 +17,9 @@ static bool compare_log_lines(const std::string &exp, const std::string &act) {
   return true;
 }
 
-static void nestest_step(Cpu &cpu, std::istream &exp_log) {
+static void nestest_step(Cpu &cpu, const std::string &exp_line) {
   std::string act_line = cpu.disassemble();
   std::cout << act_line << '\n';
-
-  std::string exp_line;
-  ASSERT_TRUE(std::getline(exp_log, exp_line));
-
   ASSERT_TRUE(compare_log_lines(exp_line, act_line))
       << "expected: " << exp_line << "\nactual:   " << act_line;
 
@@ -40,7 +36,11 @@ TEST(Cpu, nestest) {
   cpu.registers().PC = 0x0c000;
   cpu.set_cycles(7);
 
-  for (int i = 0; i < 10000; i++) {
-    ASSERT_NO_FATAL_FAILURE(nestest_step(cpu, log));
+  std::string exp_line;
+  while (std::getline(log, exp_line) && !exp_line.empty()) {
+    std::string act_line = cpu.disassemble();
+    ASSERT_TRUE(compare_log_lines(exp_line, act_line))
+        << "expected: " << exp_line << "\nactual:   " << act_line;
+    cpu.step();
   }
 }

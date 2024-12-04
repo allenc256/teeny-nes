@@ -5,7 +5,7 @@
 
 class Cartridge {
 public:
-  static constexpr uint16_t CART_OFFSET = 0x4020;
+  static constexpr uint16_t ADDR_START = 0x4020;
 
   virtual ~Cartridge() = default;
 
