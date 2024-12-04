@@ -43,4 +43,7 @@ TEST(Cpu, nestest) {
         << "expected: " << exp_line << "\nactual:   " << act_line;
     cpu.step();
   }
+
+  ASSERT_EQ(cpu.peek(0x02), 0);
+  ASSERT_EQ(cpu.peek(0x03), 0);
 }
