@@ -277,19 +277,59 @@ static constexpr std::array<OpCode, 256> init_op_codes() {
   op_code[0xc3] = {0xc3, DCP, INDIRECT_X, 2, 8, ILLEGAL | FORCE_OOPS};
   op_code[0xd3] = {0xd3, DCP, INDIRECT_Y, 2, 7, ILLEGAL | FORCE_OOPS};
 
+  op_code[0xe7] = {0xe7, ISB, ZERO_PAGE, 2, 5, ILLEGAL | FORCE_OOPS};
+  op_code[0xf7] = {0xf7, ISB, ZERO_PAGE_X, 2, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0xef] = {0xef, ISB, ABSOLUTE, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0xff] = {0xff, ISB, ABSOLUTE_X, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0xfb] = {0xfb, ISB, ABSOLUTE_Y, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0xe3] = {0xe3, ISB, INDIRECT_X, 2, 8, ILLEGAL | FORCE_OOPS};
+  op_code[0xf3] = {0xf3, ISB, INDIRECT_Y, 2, 7, ILLEGAL | FORCE_OOPS};
+
+  op_code[0x07] = {0x07, SLO, ZERO_PAGE, 2, 5, ILLEGAL | FORCE_OOPS};
+  op_code[0x17] = {0x17, SLO, ZERO_PAGE_X, 2, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x0f] = {0x0f, SLO, ABSOLUTE, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x1f] = {0x1f, SLO, ABSOLUTE_X, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x1b] = {0x1b, SLO, ABSOLUTE_Y, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x03] = {0x03, SLO, INDIRECT_X, 2, 8, ILLEGAL | FORCE_OOPS};
+  op_code[0x13] = {0x13, SLO, INDIRECT_Y, 2, 7, ILLEGAL | FORCE_OOPS};
+
+  op_code[0x27] = {0x27, RLA, ZERO_PAGE, 2, 5, ILLEGAL | FORCE_OOPS};
+  op_code[0x37] = {0x37, RLA, ZERO_PAGE_X, 2, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x2f] = {0x2f, RLA, ABSOLUTE, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x3f] = {0x3f, RLA, ABSOLUTE_X, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x3b] = {0x3b, RLA, ABSOLUTE_Y, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x23] = {0x23, RLA, INDIRECT_X, 2, 8, ILLEGAL | FORCE_OOPS};
+  op_code[0x33] = {0x33, RLA, INDIRECT_Y, 2, 7, ILLEGAL | FORCE_OOPS};
+
+  op_code[0x47] = {0x47, SRE, ZERO_PAGE, 2, 5, ILLEGAL | FORCE_OOPS};
+  op_code[0x57] = {0x57, SRE, ZERO_PAGE_X, 2, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x4f] = {0x4f, SRE, ABSOLUTE, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x5f] = {0x5f, SRE, ABSOLUTE_X, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x5b] = {0x5b, SRE, ABSOLUTE_Y, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x43] = {0x43, SRE, INDIRECT_X, 2, 8, ILLEGAL | FORCE_OOPS};
+  op_code[0x53] = {0x53, SRE, INDIRECT_Y, 2, 7, ILLEGAL | FORCE_OOPS};
+
+  op_code[0x67] = {0x67, RRA, ZERO_PAGE, 2, 5, ILLEGAL | FORCE_OOPS};
+  op_code[0x77] = {0x77, RRA, ZERO_PAGE_X, 2, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x6f] = {0x6f, RRA, ABSOLUTE, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x7f] = {0x7f, RRA, ABSOLUTE_X, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x7b] = {0x7b, RRA, ABSOLUTE_Y, 3, 6, ILLEGAL | FORCE_OOPS};
+  op_code[0x63] = {0x63, RRA, INDIRECT_X, 2, 8, ILLEGAL | FORCE_OOPS};
+  op_code[0x73] = {0x73, RRA, INDIRECT_Y, 2, 7, ILLEGAL | FORCE_OOPS};
+
   return op_code;
 }
 
 static constexpr std::array<OpCode, 256> OP_CODES = init_op_codes();
 
 static constexpr std::string_view INSTRUCTION_NAMES[] = {
-    "ADC", "AND", "ASL", "BCC", "BCS", "BEQ", "BIT", "BMI", "BNE", "BPL",
-    "BRA", "BRK", "BVC", "BVS", "CLC", "CLD", "CLI", "CLV", "CMP", "CPX",
-    "CPY", "DCP", "DEC", "DEX", "DEY", "EOR", "INC", "INX", "INY", "JMP",
-    "JSR", "LAX", "LDA", "LDX", "LDY", "LSR", "NOP", "ORA", "PHA", "PHP",
-    "PHX", "PHY", "PLA", "PLP", "PLX", "PLY", "ROL", "ROR", "RTI", "RTS",
-    "SAX", "SBC", "SEC", "SED", "SEI", "STA", "STX", "STY", "STZ", "TAX",
-    "TAY", "TRB", "TSB", "TSX", "TXA", "TXS", "TYA", "INV"
+    "ADC", "AND", "ASL", "BCC", "BCS", "BEQ", "BIT", "BMI", "BNE", "BPL", "BRA",
+    "BRK", "BVC", "BVS", "CLC", "CLD", "CLI", "CLV", "CMP", "CPX", "CPY", "DCP",
+    "DEC", "DEX", "DEY", "EOR", "INC", "INX", "INY", "ISB", "JMP", "JSR", "LAX",
+    "LDA", "LDX", "LDY", "LSR", "NOP", "ORA", "PHA", "PHP", "PHX", "PHY", "PLA",
+    "PLP", "PLX", "PLY", "RLA", "ROL", "ROR", "RRA", "RTI", "RTS", "SAX", "SBC",
+    "SEC", "SED", "SEI", "SLO", "SRE", "STA", "STX", "STY", "STZ", "TAX", "TAY",
+    "TRB", "TSB", "TSX", "TXA", "TXS", "TYA", "INV"
 };
 
 static constexpr std::string_view ADDR_MODE_NAMES[] = {
@@ -398,6 +438,7 @@ void Cpu::step() {
   case INC: step_INC(op); break;
   case INX: step_INX(op); break;
   case INY: step_INY(op); break;
+  case ISB: step_ISB(op); break;
   case JMP: step_JMP(op); break;
   case JSR: step_JSR(op); break;
   case LAX: step_LAX(op); break;
@@ -415,8 +456,10 @@ void Cpu::step() {
   case PLP: step_PLP(op); break;
   case PLX: step_PLX(op); break;
   case PLY: step_PLY(op); break;
+  case RLA: step_RLA(op); break;
   case ROL: step_ROL(op); break;
   case ROR: step_ROR(op); break;
+  case RRA: step_RRA(op); break;
   case RTI: step_RTI(op); break;
   case RTS: step_RTS(op); break;
   case SAX: step_SAX(op); break;
@@ -424,6 +467,8 @@ void Cpu::step() {
   case SEC: step_SEC(op); break;
   case SED: step_SED(op); break;
   case SEI: step_SEI(op); break;
+  case SLO: step_SLO(op); break;
+  case SRE: step_SRE(op); break;
   case STA: step_STA(op); break;
   case STX: step_STX(op); break;
   case STY: step_STY(op); break;
@@ -640,6 +685,11 @@ void Cpu::step_INY([[maybe_unused]] const OpCode &op) {
   step_load(regs_.Y + 1, regs_.Y);
 }
 
+void Cpu::step_ISB(const OpCode &op) {
+  step_INC(op);
+  step_SBC(op);
+}
+
 void Cpu::step_JMP(const OpCode &op) {
   regs_.PC = decode_addr(op);
   jump_    = true;
@@ -704,8 +754,18 @@ void Cpu::step_PLY([[maybe_unused]] const OpCode &op) {
   step_load_stack(regs_.Y);
 }
 
+void Cpu::step_RLA(const OpCode &op) {
+  step_ROL(op);
+  step_AND(op);
+}
+
 void Cpu::step_ROL(const OpCode &op) { step_shift_left(op, true); }
 void Cpu::step_ROR(const OpCode &op) { step_shift_right(op, true); }
+
+void Cpu::step_RRA(const OpCode &op) {
+  step_ROR(op);
+  step_ADC(op);
+}
 
 void Cpu::step_RTI([[maybe_unused]] const OpCode &op) {
   constexpr uint8_t mask = 0b11001111;
@@ -739,6 +799,16 @@ void Cpu::step_SBC(const OpCode &op) {
 void Cpu::step_SEC([[maybe_unused]] const OpCode &op) { regs_.P |= C_FLAG; }
 void Cpu::step_SED([[maybe_unused]] const OpCode &op) { regs_.P |= D_FLAG; }
 void Cpu::step_SEI([[maybe_unused]] const OpCode &op) { regs_.P |= I_FLAG; }
+
+void Cpu::step_SLO(const OpCode &op) {
+  step_ASL(op);
+  step_ORA(op);
+}
+
+void Cpu::step_SRE(const OpCode &op) {
+  step_LSR(op);
+  step_EOR(op);
+}
 
 void Cpu::step_STA(const OpCode &op) {
   uint16_t addr = decode_addr(op);

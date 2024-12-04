@@ -37,6 +37,7 @@ enum Instruction : uint8_t {
   INC,
   INX,
   INY,
+  ISB,
   JMP,
   JSR,
   LAX,
@@ -54,8 +55,10 @@ enum Instruction : uint8_t {
   PLP,
   PLX,
   PLY,
+  RLA,
   ROL,
   ROR,
+  RRA,
   RTI,
   RTS,
   SAX,
@@ -63,6 +66,8 @@ enum Instruction : uint8_t {
   SEC,
   SED,
   SEI,
+  SLO,
+  SRE,
   STA,
   STX,
   STY,
@@ -179,6 +184,7 @@ private:
   void step_INC(const OpCode &op);
   void step_INX(const OpCode &op);
   void step_INY(const OpCode &op);
+  void step_ISB(const OpCode &op);
   void step_JMP(const OpCode &op);
   void step_JSR(const OpCode &op);
   void step_LAX(const OpCode &op);
@@ -196,8 +202,10 @@ private:
   void step_PLP(const OpCode &op);
   void step_PLX(const OpCode &op);
   void step_PLY(const OpCode &op);
+  void step_RLA(const OpCode &op);
   void step_ROL(const OpCode &op);
   void step_ROR(const OpCode &op);
+  void step_RRA(const OpCode &op);
   void step_RTI(const OpCode &op);
   void step_RTS(const OpCode &op);
   void step_SAX(const OpCode &op);
@@ -205,6 +213,8 @@ private:
   void step_SEC(const OpCode &op);
   void step_SED(const OpCode &op);
   void step_SEI(const OpCode &op);
+  void step_SLO(const OpCode &op);
+  void step_SRE(const OpCode &op);
   void step_STA(const OpCode &op);
   void step_STX(const OpCode &op);
   void step_STY(const OpCode &op);
