@@ -78,10 +78,7 @@ static void single_step_test(const nlohmann::json &test_data) {
     cpu.poke(to_uint16_t(entry[0]), to_uint8_t(entry[1]));
   }
 
-  int64_t before = cpu.cycles();
-  cpu.step();
-  int64_t after  = cpu.cycles();
-  int64_t cycles = after - before;
+  CpuCycles cycles = cpu.step();
 
   ASSERT_EQ(regs.PC, to_uint16_t(final["pc"]));
   ASSERT_EQ(regs.S, to_uint8_t(final["s"]));

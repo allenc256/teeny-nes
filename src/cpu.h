@@ -2,6 +2,7 @@
 
 #include "apu.h"
 #include "cartridge.h"
+#include "cycles.h"
 
 #include <cassert>
 #include <cstdint>
@@ -143,9 +144,7 @@ public:
   void set_apu(Apu *apu) { apu_ = apu; }
   void set_test_mode(bool enabled) { test_mode_ = enabled; }
 
-  const Registers &registers() const { return regs_; }
-  Registers       &registers() { return regs_; }
-  int64_t          cycles() const { return cycles_; }
+  Registers &registers() { return regs_; }
 
   uint8_t  peek(uint16_t addr);
   uint16_t peek16(uint16_t addr);
@@ -155,9 +154,9 @@ public:
   uint8_t  pop();
   uint16_t pop16();
 
-  void power_up();
-  void reset();
-  void step();
+  void      power_up();
+  void      reset();
+  CpuCycles step();
 
   std::string disassemble();
 
@@ -257,7 +256,7 @@ private:
   Registers  regs_;
   Cartridge *cart_;
   Apu       *apu_;
-  uint64_t   cycles_;
+  CpuCycles  cycles_;
   bool       oops_;
   bool       jump_;
   bool       test_mode_;

@@ -428,11 +428,12 @@ uint16_t Cpu::pop16() {
   return a;
 }
 
-void Cpu::step() {
+CpuCycles Cpu::step() {
   const OpCode &op = OP_CODES[peek(regs_.PC)];
 
-  jump_ = false;
-  oops_ = false;
+  CpuCycles start = cycles_;
+  jump_           = false;
+  oops_           = false;
 
   switch (op.ins) {
   case ADC: step_ADC(op); break;
@@ -509,6 +510,9 @@ void Cpu::step() {
   if (!jump_) {
     regs_.PC += op.bytes;
   }
+
+  CpuCycles end = cycles_;
+  return end - start;
 }
 
 static bool page_crossed(uint16_t addr1, uint16_t addr2) {
