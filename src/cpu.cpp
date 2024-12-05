@@ -344,41 +344,87 @@ static constexpr std::string_view ADDR_MODE_NAMES[] = {
     "INVALID",
 };
 
-Cpu::Cpu(BusBase &bus) : bus_(bus), cycles_(0) { power_up(); }
+Cpu::Cpu() : cart_(nullptr), apu_(nullptr), cycles_(0) {}
 
 void Cpu::power_up() {
   regs_.A  = 0;
   regs_.X  = 0;
   regs_.Y  = 0;
-  regs_.PC = (uint16_t)(bus_.peek(0xfffc) + (bus_.peek(0xfffd) << 8));
+  regs_.PC = peek16(RESET_VEC_START);
   regs_.S  = 0xfd;
   regs_.P  = I_FLAG | DUMMY_FLAG;
+  cycles_  = 7;
+  std::memset(ram_, 0, sizeof(ram_));
 }
 
 void Cpu::reset() {
-  regs_.PC = (uint16_t)(bus_.peek(0xfffc) + (bus_.peek(0xfffd) << 8));
+  regs_.PC = peek16(RESET_VEC_START);
   regs_.S -= 3;
   regs_.P |= I_FLAG;
 }
 
-void Cpu::push8(uint8_t x) {
+uint8_t Cpu::peek(uint16_t addr) {
+  if (test_mode_) {
+    return ram_[addr];
+  } else if (addr < RAM_END) {
+    return ram_[addr & RAM_MASK];
+  } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {
+    // TODO: implement "open bus behavior" for APU
+    // (https://www.nesdev.org/wiki/Open_bus_behavior)
+    return 0xff;
+  } else if (addr == Apu::CONT_ADDR) {
+    return apu_->peek_control();
+  } else if (addr >= Cartridge::ADDR_START) {
+    return cart_->peek(addr);
+  } else {
+    throw std::runtime_error(
+        std::format("unsupported address: peek(${:04X})", addr)
+    );
+  }
+}
+
+uint16_t Cpu::peek16(uint16_t addr) {
+  uint8_t lo = peek(addr);
+  uint8_t hi = peek(addr + 1);
+  return (uint16_t)(lo + (hi << 8));
+}
+
+void Cpu::poke(uint16_t addr, uint8_t x) {
+  if (test_mode_) {
+    ram_[addr] = x;
+  } else if (addr < RAM_END) {
+    ram_[addr & RAM_MASK] = x;
+  } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {
+    apu_->poke_channel(addr, x);
+  } else if (addr == Apu::CONT_ADDR) {
+    apu_->poke_control(x);
+  } else if (addr >= Cartridge::ADDR_START) {
+    cart_->poke(addr, x);
+  } else {
+    throw std::runtime_error(
+        std::format("unsupported address: poke(${:04X}, {:02X})", addr, x)
+    );
+  }
+}
+
+void Cpu::push(uint8_t x) {
   poke(STACK_START + regs_.S, x);
   regs_.S--;
 }
 
-uint8_t Cpu::pop8() {
+uint8_t Cpu::pop() {
   regs_.S++;
   return peek(STACK_START + regs_.S);
 }
 
 void Cpu::push16(uint16_t x) {
-  push8(x >> 8);
-  push8(x & 0xff);
+  push(x >> 8);
+  push(x & 0xff);
 }
 
 uint16_t Cpu::pop16() {
-  uint16_t a = pop8();
-  a |= (uint16_t)pop8() << 8;
+  uint16_t a = pop();
+  a |= (uint16_t)pop() << 8;
   return a;
 }
 
@@ -472,22 +518,16 @@ static bool page_crossed(uint16_t addr1, uint16_t addr2) {
 uint16_t Cpu::decode_addr(const OpCode &op) {
   switch (op.mode) {
   case ABSOLUTE: {
-    uint8_t lo = peek(regs_.PC + 1);
-    uint8_t hi = peek(regs_.PC + 2);
-    return (uint16_t)(lo + (hi << 8));
+    return peek16(regs_.PC + 1);
   }
   case ABSOLUTE_X: {
-    uint8_t  lo    = peek(regs_.PC + 1);
-    uint8_t  hi    = peek(regs_.PC + 2);
-    uint16_t addr0 = (uint16_t)(lo + (hi << 8));
+    uint16_t addr0 = peek16(regs_.PC + 1);
     uint16_t addr1 = addr0 + regs_.X;
     oops_          = (op.flags & FORCE_OOPS) || page_crossed(addr0, addr1);
     return addr1;
   }
   case ABSOLUTE_Y: {
-    uint8_t  lo    = peek(regs_.PC + 1);
-    uint8_t  hi    = peek(regs_.PC + 2);
-    uint16_t addr0 = (uint16_t)(lo + (hi << 8));
+    uint16_t addr0 = peek16(regs_.PC + 1);
     uint16_t addr1 = addr0 + regs_.Y;
     oops_          = (op.flags & FORCE_OOPS) || page_crossed(addr0, addr1);
     return addr1;
@@ -499,7 +539,9 @@ uint16_t Cpu::decode_addr(const OpCode &op) {
     oops_          = (op.flags & FORCE_OOPS) || page_crossed(addr0, addr1);
     return addr1;
   }
-  case ZERO_PAGE: return peek(regs_.PC + 1);
+  case ZERO_PAGE: {
+    return peek(regs_.PC + 1);
+  }
   case ZERO_PAGE_X: {
     uint8_t addr0 = peek(regs_.PC + 1);
     uint8_t addr1 = addr0 + regs_.X;
@@ -703,12 +745,12 @@ void Cpu::step_ORA(const OpCode &op) {
   step_load(res, regs_.A);
 }
 
-void Cpu::step_PHA([[maybe_unused]] const OpCode &op) { push8(regs_.A); }
-void Cpu::step_PHX([[maybe_unused]] const OpCode &op) { push8(regs_.X); }
-void Cpu::step_PHY([[maybe_unused]] const OpCode &op) { push8(regs_.Y); }
+void Cpu::step_PHA([[maybe_unused]] const OpCode &op) { push(regs_.A); }
+void Cpu::step_PHX([[maybe_unused]] const OpCode &op) { push(regs_.X); }
+void Cpu::step_PHY([[maybe_unused]] const OpCode &op) { push(regs_.Y); }
 
 void Cpu::step_PHP([[maybe_unused]] const OpCode &op) {
-  push8(regs_.P | 0b00110000);
+  push(regs_.P | 0b00110000);
 }
 
 void Cpu::step_PLA([[maybe_unused]] const OpCode &op) {
@@ -717,7 +759,7 @@ void Cpu::step_PLA([[maybe_unused]] const OpCode &op) {
 
 void Cpu::step_PLP([[maybe_unused]] const OpCode &op) {
   constexpr uint8_t mask = 0b11001111;
-  uint8_t           mem  = pop8();
+  uint8_t           mem  = pop();
   // TODO: delay setting I_FLAG by one instruction?
   regs_.P = (mem & mask) | (regs_.P & ~mask);
 }
@@ -745,7 +787,7 @@ void Cpu::step_RRA(const OpCode &op) {
 
 void Cpu::step_RTI([[maybe_unused]] const OpCode &op) {
   constexpr uint8_t mask = 0b11001111;
-  uint8_t           mem  = pop8();
+  uint8_t           mem  = pop();
   regs_.P                = (regs_.P & ~mask) | (mem & mask);
   regs_.PC               = pop16();
   jump_                  = true;
@@ -832,7 +874,7 @@ void Cpu::step_load_mem(const OpCode &op, uint8_t &reg) {
 }
 
 void Cpu::step_load_stack(uint8_t &reg) {
-  uint8_t res = pop8();
+  uint8_t res = pop();
   step_load(res, reg);
 }
 
@@ -960,18 +1002,14 @@ std::string Cpu::disassemble() {
     break;
   }
   case ABSOLUTE_X: {
-    uint8_t  lo    = peek(regs_.PC + 1);
-    uint8_t  hi    = peek(regs_.PC + 2);
-    uint16_t addr0 = (uint16_t)(lo + (hi << 8));
+    uint16_t addr0 = peek16(regs_.PC + 1);
     uint16_t addr1 = addr0 + regs_.X;
     uint8_t  mem   = peek(addr1);
     std::format_to(out_it, "${:04X},X @ {:04X} = {:02X}", addr0, addr1, mem);
     break;
   }
   case ABSOLUTE_Y: {
-    uint8_t  lo    = peek(regs_.PC + 1);
-    uint8_t  hi    = peek(regs_.PC + 2);
-    uint16_t addr0 = (uint16_t)(lo + (hi << 8));
+    uint16_t addr0 = peek16(regs_.PC + 1);
     uint16_t addr1 = addr0 + regs_.Y;
     uint8_t  mem   = peek(addr1);
     std::format_to(out_it, "${:04X},Y @ {:04X} = {:02X}", addr0, addr1, mem);
@@ -1008,9 +1046,7 @@ std::string Cpu::disassemble() {
     break;
   }
   case INDIRECT: {
-    uint8_t  lo0   = peek(regs_.PC + 1);
-    uint8_t  hi    = peek(regs_.PC + 2);
-    uint16_t addr0 = (uint16_t)(lo0 + (hi << 8));
+    uint16_t addr0 = peek16(regs_.PC + 1);
     uint16_t addr  = decode_addr(op);
     std::format_to(out_it, "(${:04X}) = {:04X}", addr0, addr);
     break;

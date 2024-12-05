@@ -1,6 +1,7 @@
 #pragma once
 
-#include "bus.h"
+#include "apu.h"
+#include "cartridge.h"
 
 #include <cassert>
 #include <cstdint>
@@ -136,28 +137,33 @@ struct Registers {
 
 class Cpu {
 public:
-  Cpu(BusBase &bus);
+  Cpu();
+
+  void set_cartridge(Cartridge *cart) { cart_ = cart; }
+  void set_apu(Apu *apu) { apu_ = apu; }
+  void set_test_mode(bool enabled) { test_mode_ = enabled; }
 
   const Registers &registers() const { return regs_; }
   Registers       &registers() { return regs_; }
   int64_t          cycles() const { return cycles_; }
-  void             set_cycles(int64_t cycles) { cycles_ = cycles; }
 
-  uint8_t  peek(uint16_t addr) { return bus_.peek(addr); }
-  void     poke(uint16_t addr, uint8_t value) { return bus_.poke(addr, value); }
-  void     push8(uint8_t x);
+  uint8_t  peek(uint16_t addr);
+  uint16_t peek16(uint16_t addr);
+  void     poke(uint16_t addr, uint8_t x);
+  void     push(uint8_t x);
   void     push16(uint16_t x);
-  uint8_t  pop8();
+  uint8_t  pop();
   uint16_t pop16();
-  void     step();
+
+  void power_up();
+  void reset();
+  void step();
+
   std::string disassemble();
 
   static const std::array<OpCode, 256> &all_op_codes();
 
 private:
-  void power_up();
-  void reset();
-
   void step_ADC(const OpCode &op);
   void step_AND(const OpCode &op);
   void step_ASL(const OpCode &op);
@@ -240,15 +246,19 @@ private:
   uint16_t decode_addr(const OpCode &op);
   uint8_t  decode_mem(const OpCode &op);
 
-  static constexpr int RAM_SIZE    = 0x0800;
-  static constexpr int RAM_MASK    = 0x07ff;
-  static constexpr int STACK_START = 0x0100;
-  static constexpr int RAM_END     = 0x2000;
+  static constexpr uint16_t RAM_SIZE          = 0x0800;
+  static constexpr uint16_t RAM_MASK          = 0x07ff;
+  static constexpr uint16_t STACK_START       = 0x0100;
+  static constexpr uint16_t RAM_END           = 0x2000;
+  static constexpr uint16_t RESET_VEC_START   = 0xfffc;
+  static constexpr int      RAM_EXTENDED_SIZE = 0x10000;
 
-  Registers regs_;
-  Apu       apu_;
-  BusBase  &bus_;
-  uint64_t  cycles_;
-  bool      oops_;
-  bool      jump_;
+  uint8_t    ram_[RAM_EXTENDED_SIZE];
+  Registers  regs_;
+  Cartridge *cart_;
+  Apu       *apu_;
+  uint64_t   cycles_;
+  bool       oops_;
+  bool       jump_;
+  bool       test_mode_;
 };

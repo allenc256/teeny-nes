@@ -24,13 +24,15 @@ static bool compare_log_lines(const std::string &exp, const std::string &act) {
 TEST(Cpu, nestest) {
   std::ifstream is("test_data/nestest.nes", std::ios::binary);
   auto          cart = read_cartridge(is);
-  Bus           bus(*cart);
-  Cpu           cpu(bus);
+  Apu           apu;
+  Cpu           cpu;
 
   std::ifstream log("test_data/nestest.log");
 
-  cpu.registers().PC = 0x0c000;
-  cpu.set_cycles(7);
+  cpu.set_cartridge(cart.get());
+  cpu.set_apu(&apu);
+  cpu.power_up();
+  cpu.registers().PC = 0xc000;
 
   std::string exp_line;
   while (std::getline(log, exp_line) && !exp_line.empty()) {
@@ -57,11 +59,14 @@ static uint8_t to_uint8_t(const nlohmann::json &json) {
 }
 
 static void single_step_test(const nlohmann::json &test_data) {
-  TestBus bus;
-  Cpu     cpu(bus);
-  auto   &regs  = cpu.registers();
-  auto   &init  = test_data["initial"];
-  auto   &final = test_data["final"];
+  Cpu cpu;
+
+  cpu.set_test_mode(true);
+  cpu.power_up();
+
+  auto &regs  = cpu.registers();
+  auto &init  = test_data["initial"];
+  auto &final = test_data["final"];
 
   regs.PC = to_uint16_t(init["pc"]);
   regs.S  = to_uint8_t(init["s"]);
@@ -70,7 +75,7 @@ static void single_step_test(const nlohmann::json &test_data) {
   regs.Y  = to_uint8_t(init["y"]);
   regs.P  = to_uint8_t(init["p"]);
   for (auto &entry : init["ram"]) {
-    bus.poke(to_uint16_t(entry[0]), to_uint8_t(entry[1]));
+    cpu.poke(to_uint16_t(entry[0]), to_uint8_t(entry[1]));
   }
 
   int64_t before = cpu.cycles();
@@ -85,7 +90,7 @@ static void single_step_test(const nlohmann::json &test_data) {
   ASSERT_EQ(regs.Y, to_uint8_t(final["y"]));
   ASSERT_EQ(regs.P, to_uint8_t(final["p"]));
   for (auto &entry : final["ram"]) {
-    ASSERT_EQ(bus.peek(to_uint16_t(entry[0])), to_uint8_t(entry[1]));
+    ASSERT_EQ(cpu.peek(to_uint16_t(entry[0])), to_uint8_t(entry[1]));
   }
 
   ASSERT_EQ(cycles, test_data["cycles"].size());
@@ -100,7 +105,7 @@ static void single_step_test(const nlohmann::json &test_data) {
 //    https://github.com/SingleStepTests/65x02/tree/main/nes6502/v1 to
 //    the "test_data/single_step" directory within the source tree.
 //
-// 2. Remove DISABLE_ from the test name below.
+// 2. Remove DISABLED_ from the test name below.
 
 class SingleStepTests : public testing::TestWithParam<uint8_t> {};
 
