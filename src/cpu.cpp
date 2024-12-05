@@ -399,7 +399,6 @@ void Cpu::step() {
   case BMI: step_BMI(op); break;
   case BNE: step_BNE(op); break;
   case BPL: step_BPL(op); break;
-  case BRK: step_BRK(op); break;
   case BVC: step_BVC(op); break;
   case BVS: step_BVS(op); break;
   case CLC: step_CLC(op); break;
@@ -598,8 +597,6 @@ void Cpu::step_BIT(const OpCode &op) {
 void Cpu::step_BMI(const OpCode &op) { step_branch(op, regs_.P & N_FLAG); }
 void Cpu::step_BNE(const OpCode &op) { step_branch(op, !(regs_.P & Z_FLAG)); }
 void Cpu::step_BPL(const OpCode &op) { step_branch(op, !(regs_.P & N_FLAG)); }
-
-void Cpu::step_BRK(const OpCode &op) { step_unimplemented(op); }
 
 void Cpu::step_BVC(const OpCode &op) { step_branch(op, !(regs_.P & V_FLAG)); }
 void Cpu::step_BVS(const OpCode &op) { step_branch(op, regs_.P & V_FLAG); }
@@ -949,21 +946,16 @@ std::string Cpu::disassemble() {
       INSTRUCTION_NAMES[op.ins]
   );
 
-  bool show_mem;
-  switch (op.ins) {
-  case JSR:
-  case JMP: show_mem = false; break;
-  default: show_mem = true; break;
-  }
-
   switch (op.mode) {
   case ACCUMULATOR: std::format_to(out_it, "A"); break;
   case IMPLICIT: break;
   case ABSOLUTE: {
     uint16_t addr = decode_addr(op);
-    std::format_to(out_it, "${:04X}", addr);
-    if (show_mem) {
-      std::format_to(out_it, " = {:02X}", peek(addr));
+    if (op.ins == JSR || op.ins == JMP) {
+      std::format_to(out_it, "${:04X}", addr);
+    } else {
+      uint8_t mem = peek(addr);
+      std::format_to(out_it, "${:04X} = {:02X}", addr, mem);
     }
     break;
   }
@@ -990,13 +982,15 @@ std::string Cpu::disassemble() {
     std::format_to(out_it, "${:04X}", addr);
     break;
   }
-  case IMMEDIATE: std::format_to(out_it, "#${:02X}", decode_mem(op)); break;
+  case IMMEDIATE: {
+    uint8_t mem = decode_mem(op);
+    std::format_to(out_it, "#${:02X}", mem);
+    break;
+  }
   case ZERO_PAGE: {
     uint16_t addr = decode_addr(op);
-    std::format_to(out_it, "${:02X}", addr);
-    if (show_mem) {
-      std::format_to(out_it, " = {:02X}", peek(addr));
-    }
+    uint8_t  mem  = peek(addr);
+    std::format_to(out_it, "${:02X} = {:02X}", addr, mem);
     break;
   }
   case ZERO_PAGE_X: {
@@ -1054,11 +1048,11 @@ std::string Cpu::disassemble() {
   std::format_to(
       out_it,
       "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:???,??? CYC:{}",
-      (int)regs_.A,
-      (int)regs_.X,
-      (int)regs_.Y,
-      (int)regs_.P,
-      (int)regs_.S,
+      regs_.A,
+      regs_.X,
+      regs_.Y,
+      regs_.P,
+      regs_.S,
       cycles_
   );
 

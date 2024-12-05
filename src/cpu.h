@@ -168,7 +168,6 @@ private:
   void step_BMI(const OpCode &op);
   void step_BNE(const OpCode &op);
   void step_BPL(const OpCode &op);
-  void step_BRK(const OpCode &op);
   void step_BVC(const OpCode &op);
   void step_BVS(const OpCode &op);
   void step_CLC(const OpCode &op);
