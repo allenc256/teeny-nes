@@ -122,7 +122,8 @@ static std::vector<uint8_t> valid_op_codes() {
   std::vector<uint8_t> op_codes;
   for (auto &op : Cpu::all_op_codes()) {
     // TODO: handle illegal opcodes in the future
-    if (op.ins != INVALID_INS && !(op.code & ILLEGAL)) {
+    if (op.ins != Cpu::Instruction::INVALID_INS &&
+        !(op.code & Cpu::OpCodeFlags::ILLEGAL)) {
       op_codes.push_back(op.code);
     }
   }

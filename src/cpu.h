@@ -9,135 +9,135 @@
 #include <iostream>
 #include <sstream>
 
-enum Instruction : uint8_t {
-  ADC,
-  AND,
-  ASL,
-  BCC,
-  BCS,
-  BEQ,
-  BIT,
-  BMI,
-  BNE,
-  BPL,
-  BRA,
-  BRK,
-  BVC,
-  BVS,
-  CLC,
-  CLD,
-  CLI,
-  CLV,
-  CMP,
-  CPX,
-  CPY,
-  DCP,
-  DEC,
-  DEX,
-  DEY,
-  EOR,
-  INC,
-  INX,
-  INY,
-  ISB,
-  JMP,
-  JSR,
-  LAX,
-  LDA,
-  LDX,
-  LDY,
-  LSR,
-  NOP,
-  ORA,
-  PHA,
-  PHP,
-  PHX,
-  PHY,
-  PLA,
-  PLP,
-  PLX,
-  PLY,
-  RLA,
-  ROL,
-  ROR,
-  RRA,
-  RTI,
-  RTS,
-  SAX,
-  SBC,
-  SEC,
-  SED,
-  SEI,
-  SLO,
-  SRE,
-  STA,
-  STX,
-  STY,
-  STZ,
-  TAX,
-  TAY,
-  TRB,
-  TSB,
-  TSX,
-  TXA,
-  TXS,
-  TYA,
-  INVALID_INS
-};
-
-enum AddrMode : uint8_t {
-  ABSOLUTE,
-  ABSOLUTE_X,
-  ABSOLUTE_Y,
-  ACCUMULATOR,
-  IMMEDIATE,
-  IMPLICIT,
-  INDIRECT,
-  INDIRECT_X,
-  INDIRECT_Y,
-  RELATIVE,
-  ZERO_PAGE,
-  ZERO_PAGE_X,
-  ZERO_PAGE_Y,
-  INVALID_ADDR_MODE,
-};
-
-enum OpCodeFlags : uint8_t {
-  ILLEGAL    = 1u << 0,
-  FORCE_OOPS = 1u << 1,
-};
-
-struct OpCode {
-  uint8_t     code        = 0;
-  Instruction ins         = INVALID_INS;
-  AddrMode    mode        = INVALID_ADDR_MODE;
-  uint8_t     bytes       = 0;
-  uint8_t     base_cycles = 0;
-  uint8_t     flags       = 0;
-};
-
-enum Flags : uint8_t {
-  C_FLAG     = 1u << 0,
-  Z_FLAG     = 1u << 1,
-  I_FLAG     = 1u << 2,
-  D_FLAG     = 1u << 3,
-  B_FLAG     = 1u << 4,
-  DUMMY_FLAG = 1u << 5,
-  V_FLAG     = 1u << 6,
-  N_FLAG     = 1u << 7,
-};
-
-struct Registers {
-  uint16_t PC;
-  uint8_t  S;
-  uint8_t  A;
-  uint8_t  X;
-  uint8_t  Y;
-  uint8_t  P;
-};
-
 class Cpu {
 public:
+  enum Flags : uint8_t {
+    C_FLAG     = 1u << 0,
+    Z_FLAG     = 1u << 1,
+    I_FLAG     = 1u << 2,
+    D_FLAG     = 1u << 3,
+    B_FLAG     = 1u << 4,
+    DUMMY_FLAG = 1u << 5,
+    V_FLAG     = 1u << 6,
+    N_FLAG     = 1u << 7,
+  };
+
+  struct Registers {
+    uint16_t PC;
+    uint8_t  S;
+    uint8_t  A;
+    uint8_t  X;
+    uint8_t  Y;
+    uint8_t  P;
+  };
+
+  enum Instruction : uint8_t {
+    ADC,
+    AND,
+    ASL,
+    BCC,
+    BCS,
+    BEQ,
+    BIT,
+    BMI,
+    BNE,
+    BPL,
+    BRA,
+    BRK,
+    BVC,
+    BVS,
+    CLC,
+    CLD,
+    CLI,
+    CLV,
+    CMP,
+    CPX,
+    CPY,
+    DCP,
+    DEC,
+    DEX,
+    DEY,
+    EOR,
+    INC,
+    INX,
+    INY,
+    ISB,
+    JMP,
+    JSR,
+    LAX,
+    LDA,
+    LDX,
+    LDY,
+    LSR,
+    NOP,
+    ORA,
+    PHA,
+    PHP,
+    PHX,
+    PHY,
+    PLA,
+    PLP,
+    PLX,
+    PLY,
+    RLA,
+    ROL,
+    ROR,
+    RRA,
+    RTI,
+    RTS,
+    SAX,
+    SBC,
+    SEC,
+    SED,
+    SEI,
+    SLO,
+    SRE,
+    STA,
+    STX,
+    STY,
+    STZ,
+    TAX,
+    TAY,
+    TRB,
+    TSB,
+    TSX,
+    TXA,
+    TXS,
+    TYA,
+    INVALID_INS
+  };
+
+  enum AddrMode : uint8_t {
+    ABSOLUTE,
+    ABSOLUTE_X,
+    ABSOLUTE_Y,
+    ACCUMULATOR,
+    IMMEDIATE,
+    IMPLICIT,
+    INDIRECT,
+    INDIRECT_X,
+    INDIRECT_Y,
+    RELATIVE,
+    ZERO_PAGE,
+    ZERO_PAGE_X,
+    ZERO_PAGE_Y,
+    INVALID_ADDR_MODE,
+  };
+
+  enum OpCodeFlags : uint8_t {
+    ILLEGAL    = 1u << 0,
+    FORCE_OOPS = 1u << 1,
+  };
+
+  struct OpCode {
+    uint8_t     code        = 0;
+    Instruction ins         = INVALID_INS;
+    AddrMode    mode        = INVALID_ADDR_MODE;
+    uint8_t     bytes       = 0;
+    uint8_t     base_cycles = 0;
+    uint8_t     flags       = 0;
+  };
+
   Cpu();
 
   void set_cartridge(Cartridge *cart) { cart_ = cart; }
@@ -245,12 +245,13 @@ private:
   uint16_t decode_addr(const OpCode &op);
   uint8_t  decode_mem(const OpCode &op);
 
-  static constexpr uint16_t RAM_SIZE          = 0x0800;
-  static constexpr uint16_t RAM_MASK          = 0x07ff;
-  static constexpr uint16_t STACK_START       = 0x0100;
-  static constexpr uint16_t RAM_END           = 0x2000;
-  static constexpr uint16_t RESET_VEC_START   = 0xfffc;
-  static constexpr int      RAM_EXTENDED_SIZE = 0x10000;
+  static constexpr uint16_t  RAM_SIZE          = 0x0800;
+  static constexpr uint16_t  RAM_MASK          = 0x07ff;
+  static constexpr uint16_t  STACK_START       = 0x0100;
+  static constexpr uint16_t  RAM_END           = 0x2000;
+  static constexpr uint16_t  RESET_VECTOR      = 0xfffc;
+  static constexpr CpuCycles RESET_CYCLES      = 7;
+  static constexpr int       RAM_EXTENDED_SIZE = 0x10000;
 
   uint8_t    ram_[RAM_EXTENDED_SIZE];
   Registers  regs_;

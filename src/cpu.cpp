@@ -5,8 +5,13 @@
 #include <iomanip>
 #include <iostream>
 
-static constexpr std::array<OpCode, 256> init_op_codes() {
-  std::array<OpCode, 256> op_code;
+static constexpr std::array<Cpu::OpCode, 256> init_op_codes() {
+  using enum Cpu::Instruction;
+  using enum Cpu::AddrMode;
+  using enum Cpu::Flags;
+  using enum Cpu::OpCodeFlags;
+
+  std::array<Cpu::OpCode, 256> op_code;
 
   for (int i = 0; i < 256; i++) {
     op_code[i].code = (uint8_t)i;
@@ -315,7 +320,7 @@ static constexpr std::array<OpCode, 256> init_op_codes() {
   return op_code;
 }
 
-static constexpr std::array<OpCode, 256> OP_CODES = init_op_codes();
+static constexpr std::array<Cpu::OpCode, 256> OP_CODES = init_op_codes();
 
 static constexpr std::string_view INSTRUCTION_NAMES[] = {
     "ADC", "AND", "ASL", "BCC", "BCS", "BEQ", "BIT", "BMI", "BNE", "BPL", "BRA",
@@ -350,17 +355,18 @@ void Cpu::power_up() {
   regs_.A  = 0;
   regs_.X  = 0;
   regs_.Y  = 0;
-  regs_.PC = peek16(RESET_VEC_START);
+  regs_.PC = peek16(RESET_VECTOR);
   regs_.S  = 0xfd;
   regs_.P  = I_FLAG | DUMMY_FLAG;
-  cycles_  = 7;
+  cycles_  = RESET_CYCLES;
   std::memset(ram_, 0, sizeof(ram_));
 }
 
 void Cpu::reset() {
-  regs_.PC = peek16(RESET_VEC_START);
+  regs_.PC = peek16(RESET_VECTOR);
   regs_.S -= 3;
   regs_.P |= I_FLAG;
+  cycles_ = RESET_CYCLES;
 }
 
 uint8_t Cpu::peek(uint16_t addr) {
@@ -1107,4 +1113,4 @@ void Cpu::set_flag(Flags flag, bool value) {
   }
 }
 
-const std::array<OpCode, 256> &Cpu::all_op_codes() { return OP_CODES; }
+const std::array<Cpu::OpCode, 256> &Cpu::all_op_codes() { return OP_CODES; }
