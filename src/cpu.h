@@ -1,7 +1,6 @@
 #pragma once
 
-#include "apu.h"
-#include "cartridge.h"
+#include "bus.h"
 
 #include <cassert>
 #include <cstdint>
@@ -137,21 +136,23 @@ struct Registers {
 
 class Cpu {
 public:
-  Cpu(Cartridge &cart);
+  Cpu(BaseBus &bus);
 
   const Registers &registers() const { return regs_; }
   Registers       &registers() { return regs_; }
   int64_t          cycles() const { return cycles_; }
   void             set_cycles(int64_t cycles) { cycles_ = cycles; }
 
-  uint8_t     peek(uint16_t addr);
-  void        poke(uint16_t addr, uint8_t value);
-  void        push8(uint8_t x);
-  void        push16(uint16_t x);
-  uint8_t     pop8();
-  uint16_t    pop16();
-  void        step();
+  uint8_t  peek(uint16_t addr) { return bus_.peek(addr); }
+  void     poke(uint16_t addr, uint8_t value) { return bus_.poke(addr, value); }
+  void     push8(uint8_t x);
+  void     push16(uint16_t x);
+  uint8_t  pop8();
+  uint16_t pop16();
+  void     step();
   std::string disassemble();
+
+  static const std::array<OpCode, 256> &all_op_codes();
 
 private:
   void power_up();
@@ -245,11 +246,10 @@ private:
   static constexpr int STACK_START = 0x0100;
   static constexpr int RAM_END     = 0x2000;
 
-  uint8_t    ram_[RAM_SIZE];
-  uint64_t   cycles_;
-  Registers  regs_;
-  Apu        apu_;
-  Cartridge &cart_;
-  bool       oops_;
-  bool       jump_;
+  Registers regs_;
+  Apu       apu_;
+  BaseBus  &bus_;
+  uint64_t  cycles_;
+  bool      oops_;
+  bool      jump_;
 };

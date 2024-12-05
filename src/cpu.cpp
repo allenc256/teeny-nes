@@ -51,8 +51,6 @@ static constexpr std::array<OpCode, 256> init_op_codes() {
 
   op_code[0x10] = {0x10, BPL, RELATIVE, 2, 2};
 
-  op_code[0x00] = {0x00, BRK, IMMEDIATE, 2, 7};
-
   op_code[0x50] = {0x50, BVC, RELATIVE, 2, 2};
 
   op_code[0x70] = {0x70, BVS, RELATIVE, 2, 2};
@@ -207,9 +205,6 @@ static constexpr std::array<OpCode, 256> init_op_codes() {
   op_code[0x94] = {0x94, STY, ZERO_PAGE_X, 2, 4, FORCE_OOPS};
   op_code[0x8c] = {0x8c, STY, ABSOLUTE, 3, 4, FORCE_OOPS};
 
-  op_code[0x9c] = {0x9c, STZ, ABSOLUTE, 3, 4};
-  op_code[0x9e] = {0x9e, STZ, ABSOLUTE_X, 3, 4};
-
   op_code[0xaa] = {0xaa, TAX, IMPLICIT, 1, 2};
 
   op_code[0xa8] = {0xa8, TAY, IMPLICIT, 1, 2};
@@ -349,62 +344,32 @@ static constexpr std::string_view ADDR_MODE_NAMES[] = {
     "INVALID",
 };
 
-Cpu::Cpu(Cartridge &cart) : cycles_(0), cart_(cart) { power_up(); }
+Cpu::Cpu(BaseBus &bus) : bus_(bus), cycles_(0) { power_up(); }
 
 void Cpu::power_up() {
   regs_.A  = 0;
   regs_.X  = 0;
   regs_.Y  = 0;
-  regs_.PC = (uint16_t)cart_.peek(0xfffc) | (uint16_t)(cart_.peek(0xfffd) << 8);
+  regs_.PC = (uint16_t)(bus_.peek(0xfffc) + (bus_.peek(0xfffd) << 8));
   regs_.S  = 0xfd;
   regs_.P  = I_FLAG | DUMMY_FLAG;
-
-  std::memset(ram_, 0, sizeof(ram_));
 }
 
 void Cpu::reset() {
-  regs_.PC = (uint16_t)cart_.peek(0xfffc) | (uint16_t)(cart_.peek(0xfffd) << 8);
+  regs_.PC = (uint16_t)(bus_.peek(0xfffc) + (bus_.peek(0xfffd) << 8));
   regs_.S -= 3;
   regs_.P |= I_FLAG;
 }
 
-uint8_t Cpu::peek(uint16_t addr) {
-  if (addr < RAM_END) {
-    return ram_[addr & RAM_MASK];
-  } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {
-    // TODO: implement "open bus behavior"
-    // (https://www.nesdev.org/wiki/Open_bus_behavior)
-    return 0xff;
-  } else if (addr == Apu::CONT_ADDR) {
-    return apu_.peek_control();
-  } else if (addr >= Cartridge::ADDR_START) {
-    return cart_.peek(addr);
-  } else {
-    throw std::runtime_error(
-        std::format("unsupported address: peek(${:04X})", addr)
-    );
-  }
+void Cpu::push8(uint8_t x) {
+  poke(STACK_START + regs_.S, x);
+  regs_.S--;
 }
 
-void Cpu::poke(uint16_t addr, uint8_t value) {
-  if (addr < RAM_END) {
-    ram_[addr & RAM_MASK] = value;
-  } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {
-    apu_.poke_channel(addr, value);
-  } else if (addr == Apu::CONT_ADDR) {
-    apu_.poke_control(value);
-  } else if (addr >= Cartridge::ADDR_START) {
-    cart_.poke(addr, value);
-  } else {
-    throw std::runtime_error(
-        std::format("unsupported address: poke(${:04X}, {:02X})", addr, value)
-    );
-  }
+uint8_t Cpu::pop8() {
+  regs_.S++;
+  return peek(STACK_START + regs_.S);
 }
-
-void Cpu::push8(uint8_t x) { ram_[STACK_START + regs_.S--] = x; }
-
-uint8_t Cpu::pop8() { return ram_[STACK_START + (++regs_.S)]; }
 
 void Cpu::push16(uint16_t x) {
   push8(x >> 8);
@@ -1107,3 +1072,5 @@ void Cpu::set_flag(Flags flag, bool value) {
     regs_.P &= ~flag;
   }
 }
+
+const std::array<OpCode, 256> &Cpu::all_op_codes() { return OP_CODES; }
