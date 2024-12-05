@@ -67,7 +67,7 @@ public:
     }
   }
 
-  virtual uint8_t poke(
+  uint8_t poke(
       [[maybe_unused]] uint16_t address, [[maybe_unused]] uint8_t value
   ) override {
     throw std::runtime_error("cannot write to read-only memory");

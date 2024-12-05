@@ -3,15 +3,15 @@
 #include "apu.h"
 #include "cartridge.h"
 
-class BaseBus {
+class BusBase {
 public:
-  virtual ~BaseBus() = default;
+  virtual ~BusBase() = default;
 
   virtual uint8_t peek(uint16_t addr)            = 0;
   virtual void    poke(uint16_t addr, uint8_t x) = 0;
 };
 
-class Bus : public BaseBus {
+class Bus : public BusBase {
 public:
   Bus(Cartridge &cart) : ram_{0}, cart_(cart) {}
 
@@ -28,7 +28,7 @@ private:
   Apu        apu_;
 };
 
-class TestBus : public BaseBus {
+class TestBus : public BusBase {
 public:
   TestBus() : ram_{0} {}
 

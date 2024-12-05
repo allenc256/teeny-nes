@@ -344,7 +344,7 @@ static constexpr std::string_view ADDR_MODE_NAMES[] = {
     "INVALID",
 };
 
-Cpu::Cpu(BaseBus &bus) : bus_(bus), cycles_(0) { power_up(); }
+Cpu::Cpu(BusBase &bus) : bus_(bus), cycles_(0) { power_up(); }
 
 void Cpu::power_up() {
   regs_.A  = 0;

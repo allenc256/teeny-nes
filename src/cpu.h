@@ -136,7 +136,7 @@ struct Registers {
 
 class Cpu {
 public:
-  Cpu(BaseBus &bus);
+  Cpu(BusBase &bus);
 
   const Registers &registers() const { return regs_; }
   Registers       &registers() { return regs_; }
@@ -248,7 +248,7 @@ private:
 
   Registers regs_;
   Apu       apu_;
-  BaseBus  &bus_;
+  BusBase  &bus_;
   uint64_t  cycles_;
   bool      oops_;
   bool      jump_;
