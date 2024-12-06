@@ -179,10 +179,10 @@ void Ppu::write_PPUADDR(uint8_t x) {
   }
 
   if (!regs_.w) {
-    regs_.t = (uint16_t)((regs_.t & 0x0f) | ((x & 0b00111111) << 8));
+    regs_.t = (uint16_t)((regs_.t & 0x00ff) | ((x & 0b00111111) << 8));
     regs_.w = 1;
   } else {
-    regs_.t = (regs_.t & 0xf0) | x;
+    regs_.t = (regs_.t & 0xff00) | x;
     regs_.v = regs_.t;
     regs_.w = 0;
   }
