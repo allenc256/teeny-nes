@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-Ppu::Ppu() : cpu_(nullptr) {}
+Ppu::Ppu() : cart_(nullptr), cpu_(nullptr) {}
 
 void Ppu::power_up() {
   regs_.PPUCTRL   = 0;
@@ -34,13 +34,35 @@ void Ppu::reset() {
   ready_ = false;
 }
 
-void Ppu::poke([[maybe_unused]] uint16_t addr, [[maybe_unused]] uint8_t x) {
-  // addr &= 0b11111111111111;
-  throw std::runtime_error("not implemented yet");
+static constexpr uint16_t MMAP_ADDR_MASK    = 0x3ff;
+static constexpr uint16_t PALETTE_ADDR_MASK = 0x001f;
+
+void Ppu::poke(uint16_t addr, uint8_t x) {
+  addr &= MMAP_ADDR_MASK;
+  if (addr < Cartridge::PPU_ADDR_END) {
+    auto p = cart_->poke_ppu(addr, x);
+    if (p.is_address()) {
+      assert(p.address() < sizeof(vram_));
+      vram_[p.address()] = x;
+    }
+  } else {
+    palette_[addr & PALETTE_ADDR_MASK] = x;
+  }
 }
 
-uint8_t Ppu::peek([[maybe_unused]] uint16_t addr) {
-  // addr &= 0b11111111111111;
+uint8_t Ppu::peek(uint16_t addr) {
+  addr &= MMAP_ADDR_MASK;
+  if (addr < Cartridge::PPU_ADDR_END) {
+    auto p = cart_->peek_ppu(addr);
+    if (p.is_value()) {
+      return p.value();
+    } else {
+      assert(p.address() < sizeof(vram_));
+      return vram_[p.address()];
+    }
+  } else {
+    return palette_[addr & PALETTE_ADDR_MASK];
+  }
   throw std::runtime_error("not implemented yet");
 }
 
