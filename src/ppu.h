@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cartridge.h"
+#include "cart.h"
 #include "cpu.h"
 #include "cycles.h"
 
@@ -24,7 +24,7 @@ public:
   Ppu();
 
   void set_cpu(Cpu *cpu) { cpu_ = cpu; }
-  void set_cart(Cartridge *cart) { cart_ = cart; }
+  void set_cart(Cart *cart) { cart_ = cart; }
   void set_ready(bool ready) { ready_ = ready; }
 
   Registers &registers() { return regs_; }
@@ -129,7 +129,7 @@ private:
   uint8_t                    palette_[32];
   uint8_t                    oam_[256];
   [[maybe_unused]] PpuCycles cycles_;
-  Cartridge                 *cart_;
+  Cart                      *cart_;
   Cpu                       *cpu_;
   bool ready_; // set on first pre-render scanline after power_up or reset
 };

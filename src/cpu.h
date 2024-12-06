@@ -1,7 +1,7 @@
 #pragma once
 
 #include "apu.h"
-#include "cartridge.h"
+#include "cart.h"
 #include "cycles.h"
 
 #include <cassert>
@@ -140,7 +140,7 @@ public:
 
   Cpu();
 
-  void set_cart(Cartridge *cart) { cart_ = cart; }
+  void set_cart(Cart *cart) { cart_ = cart; }
   void set_apu(Apu *apu) { apu_ = apu; }
   void set_test_ram(uint8_t *test_ram) { test_ram_ = test_ram; }
 
@@ -258,13 +258,13 @@ private:
   static constexpr uint16_t  NMI_VECTOR   = 0xfffa;
   static constexpr CpuCycles NMI_CYCLES   = 7;
 
-  uint8_t    ram_[2 * 1024];
-  Registers  regs_;
-  Cartridge *cart_;
-  Apu       *apu_;
-  CpuCycles  cycles_;
-  bool       oops_;
-  bool       jump_;
-  bool       nmi_;
-  uint8_t   *test_ram_; // single-step tests
+  uint8_t   ram_[2 * 1024];
+  Registers regs_;
+  Cart     *cart_;
+  Apu      *apu_;
+  CpuCycles cycles_;
+  bool      oops_;
+  bool      jump_;
+  bool      nmi_;
+  uint8_t  *test_ram_; // single-step tests
 };

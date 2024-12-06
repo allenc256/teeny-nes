@@ -1,4 +1,4 @@
-#include "cartridge.h"
+#include "cart.h"
 
 #include <cassert>
 #include <format>
@@ -55,7 +55,7 @@ private:
   uint8_t bytes_[SIZE];
 };
 
-class NRom : public Cartridge {
+class NRom : public Cart {
 public:
   NRom() : prg_rom_{0} {}
 
@@ -156,7 +156,7 @@ private:
   Mirroring mirroring_;
 };
 
-std::unique_ptr<Cartridge> read_cart(std::ifstream &is) {
+std::unique_ptr<Cart> read_cart(std::ifstream &is) {
   Header header;
 
   header.read(is);

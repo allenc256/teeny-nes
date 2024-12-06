@@ -34,12 +34,12 @@ void Ppu::reset() {
   ready_ = false;
 }
 
-static constexpr uint16_t MMAP_ADDR_MASK    = 0x3ff;
+static constexpr uint16_t MMAP_ADDR_MASK    = 0x3fff;
 static constexpr uint16_t PALETTE_ADDR_MASK = 0x001f;
 
 void Ppu::poke(uint16_t addr, uint8_t x) {
   addr &= MMAP_ADDR_MASK;
-  if (addr < Cartridge::PPU_ADDR_END) {
+  if (addr < Cart::PPU_ADDR_END) {
     auto p = cart_->poke_ppu(addr, x);
     if (p.is_address()) {
       assert(p.address() < sizeof(vram_));
@@ -52,7 +52,7 @@ void Ppu::poke(uint16_t addr, uint8_t x) {
 
 uint8_t Ppu::peek(uint16_t addr) {
   addr &= MMAP_ADDR_MASK;
-  if (addr < Cartridge::PPU_ADDR_END) {
+  if (addr < Cart::PPU_ADDR_END) {
     auto p = cart_->peek_ppu(addr);
     if (p.is_value()) {
       return p.value();

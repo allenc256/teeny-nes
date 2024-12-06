@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <memory>
 
-class Cartridge {
+class Cart {
 public:
   static constexpr uint16_t PPU_ADDR_END   = 0x3f00;
   static constexpr uint16_t CPU_ADDR_START = 0x4020;
@@ -65,7 +65,7 @@ public:
     uint16_t bits_;
   };
 
-  virtual ~Cartridge() = default;
+  virtual ~Cart() = default;
 
   virtual uint8_t peek_cpu(uint16_t addr)            = 0;
   virtual void    poke_cpu(uint16_t addr, uint8_t x) = 0;
@@ -74,4 +74,4 @@ public:
   virtual PokePpu poke_ppu(uint16_t addr, uint8_t x) = 0;
 };
 
-std::unique_ptr<Cartridge> read_cart(std::ifstream &is);
+std::unique_ptr<Cart> read_cart(std::ifstream &is);

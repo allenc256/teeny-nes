@@ -387,7 +387,7 @@ uint8_t Cpu::peek(uint16_t addr) {
     return 0xff;
   } else if (addr == Apu::CONT_ADDR) {
     return apu_->peek_control();
-  } else if (addr >= Cartridge::CPU_ADDR_START) {
+  } else if (addr >= Cart::CPU_ADDR_START) {
     return cart_->peek_cpu(addr);
   } else {
     throw std::runtime_error(
@@ -411,7 +411,7 @@ void Cpu::poke(uint16_t addr, uint8_t x) {
     apu_->poke_channel(addr, x);
   } else if (addr == Apu::CONT_ADDR) {
     apu_->poke_control(x);
-  } else if (addr >= Cartridge::CPU_ADDR_START) {
+  } else if (addr >= Cart::CPU_ADDR_START) {
     cart_->poke_cpu(addr, x);
   } else {
     throw std::runtime_error(
