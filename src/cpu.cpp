@@ -349,7 +349,12 @@ static constexpr std::string_view ADDR_MODE_NAMES[] = {
     "INVALID",
 };
 
-Cpu::Cpu() : cart_(nullptr), apu_(nullptr), cycles_(0) {}
+Cpu::Cpu()
+    : cart_(nullptr),
+      apu_(nullptr),
+      oops_(false),
+      jump_(false),
+      test_mode_(false) {}
 
 void Cpu::power_up() {
   regs_.A  = 0;
@@ -358,6 +363,7 @@ void Cpu::power_up() {
   regs_.PC = peek16(RESET_VECTOR);
   regs_.S  = 0xfd;
   regs_.P  = I_FLAG | DUMMY_FLAG;
+  nmi_     = false;
   cycles_  = RESET_CYCLES;
   std::memset(ram_, 0, sizeof(ram_));
 }
@@ -366,6 +372,7 @@ void Cpu::reset() {
   regs_.PC = peek16(RESET_VECTOR);
   regs_.S -= 3;
   regs_.P |= I_FLAG;
+  nmi_    = false;
   cycles_ = RESET_CYCLES;
 }
 
@@ -424,17 +431,24 @@ uint8_t Cpu::pop() {
 }
 
 void Cpu::push16(uint16_t x) {
-  push(x >> 8);
-  push(x & 0xff);
+  uint8_t hi = (uint8_t)(x >> 8);
+  uint8_t lo = (uint8_t)x;
+  push(hi);
+  push(lo);
 }
 
 uint16_t Cpu::pop16() {
-  uint16_t a = pop();
-  a |= (uint16_t)pop() << 8;
-  return a;
+  uint8_t lo = pop();
+  uint8_t hi = pop();
+  return (uint16_t)(lo + (hi << 8));
 }
 
 CpuCycles Cpu::step() {
+  if (nmi_) {
+    step_NMI();
+    return NMI_CYCLES;
+  }
+
   const OpCode &op = OP_CODES[peek(regs_.PC)];
 
   CpuCycles start = cycles_;
@@ -876,6 +890,13 @@ void Cpu::step_TXS([[maybe_unused]] const OpCode &op) {
 
 void Cpu::step_TYA([[maybe_unused]] const OpCode &op) {
   step_load(regs_.Y, regs_.A);
+}
+
+void Cpu::step_NMI() {
+  push16(regs_.PC);
+  push(regs_.P & ~B_FLAG);
+  regs_.PC = peek16(NMI_VECTOR);
+  nmi_     = false;
 }
 
 void Cpu::step_load_mem(const OpCode &op, uint8_t &reg) {

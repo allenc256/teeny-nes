@@ -154,6 +154,8 @@ public:
   uint8_t  pop();
   uint16_t pop16();
 
+  void signal_NMI() { nmi_ = true; }
+
   void      power_up();
   void      reset();
   CpuCycles step();
@@ -231,6 +233,8 @@ private:
   void step_TXS(const OpCode &op);
   void step_TYA(const OpCode &op);
 
+  void step_NMI();
+
   void step_load_mem(const OpCode &op, uint8_t &reg);
   void step_load_stack(uint8_t &reg);
   void step_load(uint8_t res, uint8_t &reg);
@@ -245,20 +249,23 @@ private:
   uint16_t decode_addr(const OpCode &op);
   uint8_t  decode_mem(const OpCode &op);
 
-  static constexpr uint16_t  RAM_SIZE          = 0x0800;
-  static constexpr uint16_t  RAM_MASK          = 0x07ff;
-  static constexpr uint16_t  STACK_START       = 0x0100;
-  static constexpr uint16_t  RAM_END           = 0x2000;
-  static constexpr uint16_t  RESET_VECTOR      = 0xfffc;
-  static constexpr CpuCycles RESET_CYCLES      = 7;
-  static constexpr int       RAM_EXTENDED_SIZE = 0x10000;
+  static constexpr uint16_t  RAM_SIZE     = 0x0800;
+  static constexpr int       RAM_EXT_SIZE = 0x10000;
+  static constexpr uint16_t  RAM_MASK     = 0x07ff;
+  static constexpr uint16_t  STACK_START  = 0x0100;
+  static constexpr uint16_t  RAM_END      = 0x2000;
+  static constexpr uint16_t  RESET_VECTOR = 0xfffc;
+  static constexpr CpuCycles RESET_CYCLES = 7;
+  static constexpr uint16_t  NMI_VECTOR   = 0xfffa;
+  static constexpr CpuCycles NMI_CYCLES   = 7;
 
-  uint8_t    ram_[RAM_EXTENDED_SIZE];
+  uint8_t    ram_[RAM_EXT_SIZE];
   Registers  regs_;
   Cartridge *cart_;
   Apu       *apu_;
   CpuCycles  cycles_;
   bool       oops_;
   bool       jump_;
+  bool       nmi_;
   bool       test_mode_;
 };
