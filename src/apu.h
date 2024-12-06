@@ -10,6 +10,14 @@ public:
   static constexpr uint16_t CHAN_END   = 0x4010;
   static constexpr uint16_t CONT_ADDR  = 0x4015;
 
+  void power_up() {
+    // no-op
+  }
+
+  void reset() {
+    // no-op
+  }
+
   uint8_t peek_control() {
     // TODO: implement me
     return 0xff;

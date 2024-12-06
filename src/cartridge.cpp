@@ -156,7 +156,7 @@ private:
   Mirroring mirroring_;
 };
 
-std::unique_ptr<Cartridge> read_cartridge(std::ifstream &is) {
+std::unique_ptr<Cartridge> read_cart(std::ifstream &is) {
   Header header;
 
   header.read(is);

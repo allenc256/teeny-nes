@@ -23,13 +23,13 @@ static bool compare_log_lines(const std::string &exp, const std::string &act) {
 
 TEST(Cpu, nestest) {
   std::ifstream is("test_data/nestest.nes", std::ios::binary);
-  auto          cart = read_cartridge(is);
+  auto          cart = read_cart(is);
   Apu           apu;
   Cpu           cpu;
 
   std::ifstream log("test_data/nestest.log");
 
-  cpu.set_cartridge(cart.get());
+  cpu.set_cart(cart.get());
   cpu.set_apu(&apu);
   cpu.power_up();
   cpu.registers().PC = 0xc000;

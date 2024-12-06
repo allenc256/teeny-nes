@@ -74,4 +74,4 @@ public:
   virtual PokePpu poke_ppu(uint16_t addr, uint8_t x) = 0;
 };
 
-std::unique_ptr<Cartridge> read_cartridge(std::ifstream &is);
+std::unique_ptr<Cartridge> read_cart(std::ifstream &is);

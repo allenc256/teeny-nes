@@ -140,7 +140,7 @@ public:
 
   Cpu();
 
-  void set_cartridge(Cartridge *cart) { cart_ = cart; }
+  void set_cart(Cartridge *cart) { cart_ = cart; }
   void set_apu(Apu *apu) { apu_ = apu; }
   void set_test_ram(uint8_t *test_ram) { test_ram_ = test_ram; }
 
