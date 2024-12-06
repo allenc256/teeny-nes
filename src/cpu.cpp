@@ -354,7 +354,7 @@ Cpu::Cpu()
       apu_(nullptr),
       oops_(false),
       jump_(false),
-      test_mode_(false) {}
+      test_ram_(nullptr) {}
 
 void Cpu::power_up() {
   regs_.A  = 0;
@@ -377,8 +377,8 @@ void Cpu::reset() {
 }
 
 uint8_t Cpu::peek(uint16_t addr) {
-  if (test_mode_) {
-    return ram_[addr];
+  if (test_ram_) {
+    return test_ram_[addr];
   } else if (addr < RAM_END) {
     return ram_[addr & RAM_MASK];
   } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {
@@ -403,8 +403,8 @@ uint16_t Cpu::peek16(uint16_t addr) {
 }
 
 void Cpu::poke(uint16_t addr, uint8_t x) {
-  if (test_mode_) {
-    ram_[addr] = x;
+  if (test_ram_) {
+    test_ram_[addr] = x;
   } else if (addr < RAM_END) {
     ram_[addr & RAM_MASK] = x;
   } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {

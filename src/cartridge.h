@@ -50,7 +50,7 @@ public:
     }
 
     static PokePpu make_address(uint16_t addr) {
-      assert(addr == (addr & ADDR_MASK));
+      assert(!(addr & ~ADDR_MASK));
       return PokePpu(addr | ADDR_FLAG);
     }
 

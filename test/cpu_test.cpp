@@ -59,9 +59,10 @@ static uint8_t to_uint8_t(const nlohmann::json &json) {
 }
 
 static void single_step_test(const nlohmann::json &test_data) {
-  Cpu cpu;
+  uint8_t test_ram[64 * 1024];
+  Cpu     cpu;
 
-  cpu.set_test_mode(true);
+  cpu.set_test_ram(test_ram);
   cpu.power_up();
 
   auto &regs  = cpu.registers();
@@ -75,7 +76,7 @@ static void single_step_test(const nlohmann::json &test_data) {
   regs.Y  = to_uint8_t(init["y"]);
   regs.P  = to_uint8_t(init["p"]);
   for (auto &entry : init["ram"]) {
-    cpu.poke(to_uint16_t(entry[0]), to_uint8_t(entry[1]));
+    test_ram[to_uint16_t(entry[0])] = to_uint8_t(entry[1]);
   }
 
   CpuCycles cycles = cpu.step();
@@ -87,7 +88,7 @@ static void single_step_test(const nlohmann::json &test_data) {
   ASSERT_EQ(regs.Y, to_uint8_t(final["y"]));
   ASSERT_EQ(regs.P, to_uint8_t(final["p"]));
   for (auto &entry : final["ram"]) {
-    ASSERT_EQ(cpu.peek(to_uint16_t(entry[0])), to_uint8_t(entry[1]));
+    ASSERT_EQ(test_ram[to_uint16_t(entry[0])], to_uint8_t(entry[1]));
   }
 
   ASSERT_EQ(cycles, test_data["cycles"].size());
