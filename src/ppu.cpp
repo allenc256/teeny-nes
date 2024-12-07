@@ -4,7 +4,13 @@
 
 #include <cstring>
 
-Ppu::Ppu() : cart_(nullptr), cpu_(nullptr) {}
+Ppu::Ppu()
+    : cart_(nullptr),
+      cpu_(nullptr),
+      scanline_(0),
+      scanline_tick_(0),
+      odd_(false),
+      cycles_(0) {}
 
 void Ppu::power_up() {
   regs_.PPUCTRL   = 0;
@@ -21,7 +27,10 @@ void Ppu::power_up() {
   std::memset(palette_, 0, sizeof(palette_));
   std::memset(vram_, 0, sizeof(vram_));
 
-  ready_ = false;
+  scanline_      = PRERENDER_SCANLINE;
+  scanline_tick_ = 0;
+  odd_           = false;
+  cycles_        = 0;
 }
 
 void Ppu::reset() {
@@ -33,7 +42,10 @@ void Ppu::reset() {
   regs_.x       = 0;
   regs_.w       = 0;
 
-  ready_ = false;
+  scanline_      = PRERENDER_SCANLINE;
+  scanline_tick_ = 0;
+  odd_           = false;
+  cycles_        = 0;
 }
 
 static constexpr uint16_t MMAP_ADDR_MASK    = 0x3fff;
@@ -203,4 +215,29 @@ void Ppu::write_PPUDATA(uint8_t x) {
 
 void Ppu::write_OAMDMA([[maybe_unused]] uint8_t x) {
   throw std::runtime_error("not implemented yet");
+}
+
+void Ppu::step() {
+  if (scanline_ == 241 && scanline_tick_ == 1) {
+    regs_.PPUSTATUS |= PPUSTATUS_VBLANK;
+  } else if (scanline_ == PRERENDER_SCANLINE && scanline_tick_ == 1) {
+    regs_.PPUSTATUS = 0;
+  }
+
+  scanline_tick_++;
+  cycles_++;
+
+  if (scanline_ == PRERENDER_SCANLINE) {
+    if (scanline_tick_ - odd_ == 340) {
+      scanline_      = 0;
+      scanline_tick_ = 0;
+    }
+  } else if (scanline_tick_ == 340) {
+    scanline_++;
+    scanline_tick_ = 0;
+    if (scanline_ == PRERENDER_SCANLINE) {
+      odd_   = !odd_;
+      ready_ = cycles_ >= READY_CYCLE;
+    }
+  }
 }

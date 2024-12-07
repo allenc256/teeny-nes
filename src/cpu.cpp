@@ -5,8 +5,6 @@
 
 #include <cstring>
 #include <format>
-#include <iomanip>
-#include <iostream>
 
 static constexpr std::array<Cpu::OpCode, 256> init_op_codes() {
   using enum Cpu::Instruction;
@@ -469,7 +467,7 @@ uint16_t Cpu::pop16() {
   return (uint16_t)(lo + (hi << 8));
 }
 
-CpuCycles Cpu::step() {
+int Cpu::step() {
   if (nmi_) {
     step_NMI();
     return NMI_CYCLES;
@@ -477,9 +475,9 @@ CpuCycles Cpu::step() {
 
   const OpCode &op = OP_CODES[peek(regs_.PC)];
 
-  CpuCycles start = cycles_;
-  jump_           = false;
-  oops_           = false;
+  int64_t start = cycles_;
+  jump_         = false;
+  oops_         = false;
 
   switch (op.ins) {
   case ADC: step_ADC(op); break;
@@ -557,8 +555,8 @@ CpuCycles Cpu::step() {
     regs_.PC += op.bytes;
   }
 
-  CpuCycles end = cycles_;
-  return end - start;
+  int64_t end = cycles_;
+  return (int)(end - start);
 }
 
 static bool page_crossed(uint16_t addr1, uint16_t addr2) {
@@ -1026,9 +1024,8 @@ std::string Cpu::disassemble() {
   auto          out_it = std::back_inserter(out_str);
   const OpCode &op     = OP_CODES[peek(regs_.PC)];
 
-  std::format_to(out_it, "{:04X}", regs_.PC);
+  std::format_to(out_it, "{:04X}  ", regs_.PC);
 
-  pad_to(out_str, 6);
   for (uint8_t i = 0; i < 3; i++) {
     if (i < op.bytes) {
       std::format_to(out_it, "{:02X} ", peek(regs_.PC + i));
@@ -1045,31 +1042,41 @@ std::string Cpu::disassemble() {
       INSTRUCTION_NAMES[op.ins]
   );
 
+  auto format_mem = [&](uint16_t addr) {
+    bool io_mapped =
+        !(test_ram_ || addr < RAM_END || addr >= Cart::CPU_ADDR_START);
+    if (!io_mapped) {
+      uint8_t mem = peek(addr);
+      std::format_to(out_it, " = {:02X}", mem);
+    } else {
+      // don't peek IO-mapped memory, since this might have side-effects
+      std::format_to(out_it, " = ??");
+    }
+  };
+
   switch (op.mode) {
   case ACCUMULATOR: std::format_to(out_it, "A"); break;
   case IMPLICIT: break;
   case ABSOLUTE: {
     uint16_t addr = decode_addr(op);
-    if (op.ins == JSR || op.ins == JMP) {
-      std::format_to(out_it, "${:04X}", addr);
-    } else {
-      uint8_t mem = peek(addr);
-      std::format_to(out_it, "${:04X} = {:02X}", addr, mem);
+    std::format_to(out_it, "${:04X}", addr);
+    if (op.ins != JSR && op.ins != JMP) {
+      format_mem(addr);
     }
     break;
   }
   case ABSOLUTE_X: {
     uint16_t addr0 = peek16(regs_.PC + 1);
     uint16_t addr1 = addr0 + regs_.X;
-    uint8_t  mem   = peek(addr1);
-    std::format_to(out_it, "${:04X},X @ {:04X} = {:02X}", addr0, addr1, mem);
+    std::format_to(out_it, "${:04X},X @ {:04X}", addr0, addr1);
+    format_mem(addr1);
     break;
   }
   case ABSOLUTE_Y: {
     uint16_t addr0 = peek16(regs_.PC + 1);
     uint16_t addr1 = addr0 + regs_.Y;
-    uint8_t  mem   = peek(addr1);
-    std::format_to(out_it, "${:04X},Y @ {:04X} = {:02X}", addr0, addr1, mem);
+    std::format_to(out_it, "${:04X},Y @ {:04X}", addr0, addr1);
+    format_mem(addr1);
     break;
   }
   case RELATIVE: {
@@ -1084,22 +1091,22 @@ std::string Cpu::disassemble() {
   }
   case ZERO_PAGE: {
     uint16_t addr = decode_addr(op);
-    uint8_t  mem  = peek(addr);
-    std::format_to(out_it, "${:02X} = {:02X}", addr, mem);
+    std::format_to(out_it, "${:02X}", addr);
+    format_mem(addr);
     break;
   }
   case ZERO_PAGE_X: {
     uint8_t addr0 = peek(regs_.PC + 1);
     uint8_t addr1 = addr0 + regs_.X;
-    uint8_t mem   = peek(addr1);
-    std::format_to(out_it, "${:02X},X @ {:02X} = {:02X}", addr0, addr1, mem);
+    std::format_to(out_it, "${:02X},X @ {:02X}", addr0, addr1);
+    format_mem(addr1);
     break;
   }
   case ZERO_PAGE_Y: {
     uint8_t addr0 = peek(regs_.PC + 1);
     uint8_t addr1 = addr0 + regs_.Y;
-    uint8_t mem   = peek(addr1);
-    std::format_to(out_it, "${:02X},Y @ {:02X} = {:02X}", addr0, addr1, mem);
+    std::format_to(out_it, "${:02X},Y @ {:02X}", addr0, addr1);
+    format_mem(addr1);
     break;
   }
   case INDIRECT: {
@@ -1112,10 +1119,8 @@ std::string Cpu::disassemble() {
     uint8_t  a     = peek(regs_.PC + 1);
     uint8_t  addr0 = a + regs_.X;
     uint16_t addr  = decode_addr(op);
-    uint8_t  mem   = peek(addr);
-    std::format_to(
-        out_it, "(${:02X},X) @ {:02X} = {:04X} = {:02X}", a, addr0, addr, mem
-    );
+    std::format_to(out_it, "(${:02X},X) @ {:02X} = {:04X}", a, addr0, addr);
+    format_mem(addr);
     break;
   }
   case INDIRECT_Y: {
@@ -1123,10 +1128,8 @@ std::string Cpu::disassemble() {
     uint8_t  a1    = a0 + 1;
     uint16_t addr0 = (uint16_t)(peek(a0) + (peek(a1) << 8));
     uint16_t addr1 = addr0 + regs_.Y;
-    uint8_t  mem   = peek(addr1);
-    std::format_to(
-        out_it, "(${:02X}),Y = {:04X} @ {:04X} = {:02X}", a0, addr0, addr1, mem
-    );
+    std::format_to(out_it, "(${:02X}),Y = {:04X} @ {:04X}", a0, addr0, addr1);
+    format_mem(addr1);
     break;
   }
   default:

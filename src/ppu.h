@@ -29,6 +29,9 @@ public:
   void set_ready(bool ready) { ready_ = ready; }
 
   Registers &registers() { return regs_; }
+  int        scanline() const { return scanline_; }
+  int        scanline_tick() const { return scanline_tick_; }
+  int64_t    cycles() const { return cycles_; }
 
   uint8_t read_PPUCTRL();
   uint8_t read_PPUMASK();
@@ -55,6 +58,7 @@ public:
 
   void power_up();
   void reset();
+  void step();
 
 private:
   uint8_t read_open_bus();
@@ -125,12 +129,20 @@ private:
   static constexpr uint8_t PPUSTATUS_SP_HIT0 = 0b01000000;
   static constexpr uint8_t PPUSTATUS_VBLANK  = 0b10000000;
 
-  Registers                  regs_;
-  uint8_t                    vram_[2 * 1024];
-  uint8_t                    palette_[32];
-  uint8_t                    oam_[256];
-  [[maybe_unused]] PpuCycles cycles_;
-  Cart                      *cart_;
-  Cpu                       *cpu_;
-  bool ready_; // set on first pre-render scanline after power_up or reset
+  static constexpr int PRERENDER_SCANLINE = 261;
+
+  // The cycle at which PPU is ready to accept writes (one frame's worth).
+  static constexpr int64_t READY_CYCLE = 262 * 341;
+
+  Registers regs_;
+  uint8_t   vram_[2 * 1024];
+  uint8_t   palette_[32];
+  uint8_t   oam_[256];
+  Cart     *cart_;
+  Cpu      *cpu_;
+  int       scanline_;
+  int       scanline_tick_;
+  bool      odd_;    // odd/even frame
+  bool      ready_;  // ready for writes
+  int64_t   cycles_; // since reset
 };

@@ -87,10 +87,14 @@ int main() {
   nes.power_up();
 
   Cpu &cpu = nes.cpu();
+  Ppu &ppu = nes.ppu();
 
-  for (int i = 0; i < 200; i++) {
-    std::cout << cpu.disassemble() << '\n';
-    cpu.step();
+  for (int i = 0; i < 8000; i++) {
+    std::cout << cpu.disassemble();
+    std::cout << std::format(
+        " {:03d},{:03d}\n", ppu.scanline(), ppu.scanline_tick()
+    );
+    nes.step();
   }
 
   // dump_pattern_tables(nes.ppu());

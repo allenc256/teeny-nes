@@ -31,3 +31,12 @@ void Nes::load_cart(std::string_view path) {
   cpu_.set_cart(cart_.get());
   ppu_.set_cart(cart_.get());
 }
+
+void Nes::step() {
+  cpu_.step();
+
+  int ppu_catchup = (int)(cpu_.cycles() * 3 - ppu_.cycles());
+  for (int i = 0; i < ppu_catchup; i++) {
+    ppu_.step();
+  }
+}

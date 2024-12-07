@@ -148,6 +148,7 @@ public:
   void set_test_ram(uint8_t *test_ram) { test_ram_ = test_ram; }
 
   Registers &registers() { return regs_; }
+  int64_t    cycles() { return cycles_; }
 
   uint8_t  peek(uint16_t addr);
   uint16_t peek16(uint16_t addr);
@@ -159,9 +160,9 @@ public:
 
   void signal_NMI() { nmi_ = true; }
 
-  void      power_up();
-  void      reset();
-  CpuCycles step();
+  void power_up();
+  void reset();
+  int  step();
 
   std::string disassemble();
 
@@ -252,13 +253,13 @@ private:
   uint16_t decode_addr(const OpCode &op);
   uint8_t  decode_mem(const OpCode &op);
 
-  static constexpr uint16_t  STACK_START  = 0x0100;
-  static constexpr uint16_t  RAM_END      = 0x2000;
-  static constexpr uint16_t  RAM_MASK     = 0x07ff;
-  static constexpr uint16_t  RESET_VECTOR = 0xfffc;
-  static constexpr CpuCycles RESET_CYCLES = 7;
-  static constexpr uint16_t  NMI_VECTOR   = 0xfffa;
-  static constexpr CpuCycles NMI_CYCLES   = 7;
+  static constexpr uint16_t STACK_START  = 0x0100;
+  static constexpr uint16_t RAM_END      = 0x2000;
+  static constexpr uint16_t RAM_MASK     = 0x07ff;
+  static constexpr uint16_t RESET_VECTOR = 0xfffc;
+  static constexpr int      RESET_CYCLES = 7;
+  static constexpr uint16_t NMI_VECTOR   = 0xfffa;
+  static constexpr int      NMI_CYCLES   = 7;
 
   static constexpr uint16_t APU_CHAN_START    = 0x4000;
   static constexpr uint16_t APU_CHAN_END      = 0x4014;
@@ -280,7 +281,7 @@ private:
   Cart     *cart_;
   Ppu      *ppu_;
   Apu      *apu_;
-  CpuCycles cycles_;
+  int64_t   cycles_;
   bool      oops_;
   bool      jump_;
   bool      nmi_;

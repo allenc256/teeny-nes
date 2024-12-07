@@ -16,6 +16,7 @@ public:
 
   void power_up();
   void reset();
+  void step();
 
   void load_cart(std::string_view path);
 
