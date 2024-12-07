@@ -1,10 +1,11 @@
 #pragma once
 
-#include "cart.h"
-#include "cpu.h"
 #include "cycles.h"
 
 #include <cstdint>
+
+class Cpu;
+class Cart;
 
 class Ppu {
 public:

@@ -1,4 +1,7 @@
 #include "cpu.h"
+#include "apu.h"
+#include "cart.h"
+#include "ppu.h"
 
 #include <cstring>
 #include <format>
@@ -351,6 +354,7 @@ static constexpr std::string_view ADDR_MODE_NAMES[] = {
 
 Cpu::Cpu()
     : cart_(nullptr),
+      ppu_(nullptr),
       apu_(nullptr),
       oops_(false),
       jump_(false),
@@ -381,18 +385,28 @@ uint8_t Cpu::peek(uint16_t addr) {
     return test_ram_[addr];
   } else if (addr < RAM_END) {
     return ram_[addr & RAM_MASK];
-  } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {
-    // TODO: implement "open bus behavior" for APU
-    // (https://www.nesdev.org/wiki/Open_bus_behavior)
-    return 0xff;
-  } else if (addr == Apu::CONT_ADDR) {
-    return apu_->peek_control();
   } else if (addr >= Cart::CPU_ADDR_START) {
     return cart_->peek_cpu(addr);
+  } else if (addr >= APU_CHAN_START && addr < APU_CHAN_END) {
+    return 0xff; // TODO: implement APU
   } else {
-    throw std::runtime_error(
-        std::format("unsupported address: peek(${:04X})", addr)
-    );
+    switch (addr) {
+    case APU_STATUS:
+    case APU_FRAME_COUNTER: return 0xff; // TODO: implement APU
+    case PPU_PPUCTRL: return ppu_->read_PPUCTRL();
+    case PPU_PPUMASK: return ppu_->read_PPUMASK();
+    case PPU_PPUSTATUS: return ppu_->read_PPUSTATUS();
+    case PPU_OAMADDR: return ppu_->read_OAMADDR();
+    case PPU_OAMDATA: return ppu_->read_OAMDATA();
+    case PPU_PPUSCROLL: return ppu_->read_PPUSCROLL();
+    case PPU_PPUADDR: return ppu_->read_PPUADDR();
+    case PPU_PPUDATA: return ppu_->read_PPUDATA();
+    case PPU_OAMDMA: return ppu_->read_OAMDMA();
+    default:
+      throw std::runtime_error(
+          std::format("unsupported address: peek(${:04X})", addr)
+      );
+    }
   }
 }
 
@@ -407,16 +421,28 @@ void Cpu::poke(uint16_t addr, uint8_t x) {
     test_ram_[addr] = x;
   } else if (addr < RAM_END) {
     ram_[addr & RAM_MASK] = x;
-  } else if (addr >= Apu::CHAN_START && addr < Apu::CHAN_END) {
-    apu_->poke_channel(addr, x);
-  } else if (addr == Apu::CONT_ADDR) {
-    apu_->poke_control(x);
   } else if (addr >= Cart::CPU_ADDR_START) {
     cart_->poke_cpu(addr, x);
+  } else if (addr >= APU_CHAN_START && addr < APU_CHAN_END) {
+    // TODO: implement APU
   } else {
-    throw std::runtime_error(
-        std::format("unsupported address: poke(${:04X}, {:02X})", addr, x)
-    );
+    switch (addr) {
+    case APU_STATUS:
+    case APU_FRAME_COUNTER: break; // TODO: implement APU
+    case PPU_PPUCTRL: ppu_->write_PPUCTRL(x); break;
+    case PPU_PPUMASK: ppu_->write_PPUMASK(x); break;
+    case PPU_PPUSTATUS: ppu_->write_PPUSTATUS(x); break;
+    case PPU_OAMADDR: ppu_->write_OAMADDR(x); break;
+    case PPU_OAMDATA: ppu_->write_OAMDATA(x); break;
+    case PPU_PPUSCROLL: ppu_->write_PPUSCROLL(x); break;
+    case PPU_PPUADDR: ppu_->write_PPUADDR(x); break;
+    case PPU_PPUDATA: ppu_->write_PPUDATA(x); break;
+    case PPU_OAMDMA: ppu_->write_OAMDMA(x); break;
+    default:
+      throw std::runtime_error(
+          std::format("unsupported address: poke(${:04X}, {:02X})", addr, x)
+      );
+    }
   }
 }
 
@@ -685,8 +711,8 @@ void Cpu::step_DEC(const OpCode &op) {
   uint16_t addr = decode_addr(op);
   uint8_t  mem  = peek(addr);
   uint8_t  res  = mem - 1;
-  // N.B., read-modify-write instruction, extra write can matter if targeting a
-  // hardware register.
+  // N.B., read-modify-write instruction, extra write can matter if targeting
+  // a hardware register.
   poke(addr, mem);
   poke(addr, res);
   set_flag(Z_FLAG, res == 0);
@@ -711,8 +737,8 @@ void Cpu::step_INC(const OpCode &op) {
   uint16_t addr = decode_addr(op);
   uint8_t  mem  = peek(addr);
   uint8_t  res  = mem + 1;
-  // N.B., read-modify-write instruction, extra write can matter if targeting a
-  // hardware register.
+  // N.B., read-modify-write instruction, extra write can matter if targeting
+  // a hardware register.
   poke(addr, mem);
   poke(addr, res);
   set_flag(Z_FLAG, res == 0);
@@ -949,8 +975,8 @@ void Cpu::step_shift_left(const OpCode &op, bool carry) {
     set_flag(C_FLAG, mem & 0x80);
     set_flag(Z_FLAG, res == 0);
     set_flag(N_FLAG, res & 0x80);
-    // N.B., read-modify-write instruction, extra write can matter if targeting
-    // a hardware register.
+    // N.B., read-modify-write instruction, extra write can matter if
+    // targeting a hardware register.
     poke(addr, mem);
     poke(addr, res);
   }
@@ -974,8 +1000,8 @@ void Cpu::step_shift_right(const OpCode &op, bool carry) {
     set_flag(C_FLAG, mem & 0x1);
     set_flag(Z_FLAG, res == 0);
     set_flag(N_FLAG, res & 0x80);
-    // N.B., read-modify-write instruction, extra write can matter if targeting
-    // a hardware register.
+    // N.B., read-modify-write instruction, extra write can matter if
+    // targeting a hardware register.
     poke(addr, mem);
     poke(addr, res);
   }

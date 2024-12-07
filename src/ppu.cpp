@@ -1,4 +1,6 @@
 #include "ppu.h"
+#include "cart.h"
+#include "cpu.h"
 
 #include <cstring>
 
@@ -75,8 +77,10 @@ uint8_t Ppu::read_OAMDMA() { return read_open_bus(); }
 uint8_t Ppu::read_open_bus() { return 0; }
 
 uint8_t Ppu::read_PPUSTATUS() {
-  regs_.w = 0;
-  return regs_.PPUSTATUS;
+  regs_.w   = 0;
+  uint8_t r = regs_.PPUSTATUS;
+  regs_.PPUSTATUS &= ~PPUSTATUS_VBLANK;
+  return r;
 }
 
 uint8_t Ppu::read_OAMDATA() {

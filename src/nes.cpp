@@ -4,6 +4,7 @@
 
 Nes::Nes() {
   cpu_.set_apu(&apu_);
+  cpu_.set_ppu(&ppu_);
   ppu_.set_cpu(&cpu_);
 }
 

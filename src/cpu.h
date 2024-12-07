@@ -1,13 +1,15 @@
 #pragma once
 
-#include "apu.h"
-#include "cart.h"
 #include "cycles.h"
 
 #include <cassert>
 #include <cstdint>
 #include <iostream>
 #include <sstream>
+
+class Cart;
+class Ppu;
+class Apu;
 
 class Cpu {
 public:
@@ -141,6 +143,7 @@ public:
   Cpu();
 
   void set_cart(Cart *cart) { cart_ = cart; }
+  void set_ppu(Ppu *ppu) { ppu_ = ppu; }
   void set_apu(Apu *apu) { apu_ = apu; }
   void set_test_ram(uint8_t *test_ram) { test_ram_ = test_ram; }
 
@@ -249,18 +252,33 @@ private:
   uint16_t decode_addr(const OpCode &op);
   uint8_t  decode_mem(const OpCode &op);
 
-  static constexpr int       RAM_EXT_SIZE = 0x10000;
-  static constexpr uint16_t  RAM_MASK     = 0x07ff;
   static constexpr uint16_t  STACK_START  = 0x0100;
   static constexpr uint16_t  RAM_END      = 0x2000;
+  static constexpr uint16_t  RAM_MASK     = 0x07ff;
   static constexpr uint16_t  RESET_VECTOR = 0xfffc;
   static constexpr CpuCycles RESET_CYCLES = 7;
   static constexpr uint16_t  NMI_VECTOR   = 0xfffa;
   static constexpr CpuCycles NMI_CYCLES   = 7;
 
+  static constexpr uint16_t APU_CHAN_START    = 0x4000;
+  static constexpr uint16_t APU_CHAN_END      = 0x4014;
+  static constexpr uint16_t APU_STATUS        = 0x4015;
+  static constexpr uint16_t APU_FRAME_COUNTER = 0x4017;
+
+  static constexpr uint16_t PPU_PPUCTRL   = 0x2000;
+  static constexpr uint16_t PPU_PPUMASK   = 0x2001;
+  static constexpr uint16_t PPU_PPUSTATUS = 0x2002;
+  static constexpr uint16_t PPU_OAMADDR   = 0x2003;
+  static constexpr uint16_t PPU_OAMDATA   = 0x2004;
+  static constexpr uint16_t PPU_PPUSCROLL = 0x2005;
+  static constexpr uint16_t PPU_PPUADDR   = 0x2006;
+  static constexpr uint16_t PPU_PPUDATA   = 0x2007;
+  static constexpr uint16_t PPU_OAMDMA    = 0x4014;
+
   uint8_t   ram_[2 * 1024];
   Registers regs_;
   Cart     *cart_;
+  Ppu      *ppu_;
   Apu      *apu_;
   CpuCycles cycles_;
   bool      oops_;

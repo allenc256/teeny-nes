@@ -33,6 +33,11 @@ void dump_pattern_table(Ppu &ppu, uint16_t base) {
 
   extract_pattern_table(ppu, base, buf);
 
+  std::cout << "------------------\n";
+  std::cout << std::format("Pattern table {:04X}\n", base);
+  std::cout << "------------------\n";
+  std::cout << '\n';
+
   for (int row = 0; row < 16; row++) {
     for (int y = 0; y < 8; y++) {
       for (int col = 0; col < 16; col++) {
@@ -43,20 +48,37 @@ void dump_pattern_table(Ppu &ppu, uint16_t base) {
       std::cout << '\n';
     }
   }
+
+  std::cout << '\n';
 }
 
-void dump_pattern_tables(Ppu &ppu) {
-  std::cout << "------------------\n";
-  std::cout << "Pattern table 0000\n";
-  std::cout << "------------------\n";
+void extract_name_table(Ppu &ppu, uint16_t base, uint8_t (*buf)[32]) {
+  for (uint16_t i = 0; i < 1024; i++) {
+    uint16_t addr = base + i;
+    int      x    = i & 0b11111;
+    int      y    = i >> 5;
+    buf[y][x]     = ppu.peek(addr);
+  }
+}
+
+void dump_name_table(Ppu &ppu, uint16_t base) {
+  uint8_t buf[32][32];
+
+  extract_name_table(ppu, base, buf);
+
+  std::cout << "---------------\n";
+  std::cout << std::format("Name table {:04X}\n", base);
+  std::cout << "---------------\n";
   std::cout << '\n';
-  dump_pattern_table(ppu, 0x0000);
+
+  for (int row = 0; row < 32; row++) {
+    for (int col = 0; col < 32; col++) {
+      std::cout << std::format("{:02X}", buf[row][col]);
+    }
+    std::cout << '\n';
+  }
+
   std::cout << '\n';
-  std::cout << "------------------\n";
-  std::cout << "Pattern table 1000\n";
-  std::cout << "------------------\n";
-  std::cout << '\n';
-  dump_pattern_table(ppu, 0x1000);
 }
 
 int main() {
@@ -64,7 +86,15 @@ int main() {
   nes.load_cart("hello_world.nes");
   nes.power_up();
 
-  dump_pattern_tables(nes.ppu());
+  Cpu &cpu = nes.cpu();
+
+  for (int i = 0; i < 200; i++) {
+    std::cout << cpu.disassemble() << '\n';
+    cpu.step();
+  }
+
+  // dump_pattern_tables(nes.ppu());
+  // dump_name_table(nes.ppu(), 0x2000);
 
   return 0;
 }

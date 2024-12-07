@@ -1,3 +1,5 @@
+#include "apu.h"
+#include "cart.h"
 #include "cpu.h"
 
 #define JSON_USE_IMPLICIT_CONVERSIONS 0
