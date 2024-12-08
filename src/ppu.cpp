@@ -2,15 +2,63 @@
 #include "cart.h"
 #include "cpu.h"
 
+#include <array>
+#include <cassert>
 #include <cstring>
+#include <format>
+
+static constexpr int SCANLINE_MAX_CYCLES = 341;
+
+// Reference: https://www.nesdev.org/wiki/PPU_rendering#Frame_timing_diagram
+static constexpr auto init_visible_frame_cycles() {
+  std::array<Ppu::CycleOps, SCANLINE_MAX_CYCLES> cycles;
+
+  for (int i = 8; i < 256; i += 8) {
+    cycles[i].v_op = Ppu::V_OP_INC_HORZ;
+  }
+  cycles[256].v_op = Ppu::V_OP_INC_HORZ;
+  cycles[257].v_op = Ppu::V_OP_SET_HORZ;
+  cycles[328].v_op = Ppu::V_OP_INC_HORZ;
+  cycles[336].v_op = Ppu::V_OP_INC_HORZ;
+
+  for (int i = 0; i < 256; i += 8) {
+    for (int j = 1; j <= 8; j++) {
+      cycles[i + j].fetch_op = (Ppu::FetchOp)j;
+    }
+  }
+  for (int i = 320; i < 336; i += 8) {
+    for (int j = 1; j <= 8; j++) {
+      cycles[i + j].fetch_op = (Ppu::FetchOp)j;
+    }
+  }
+  cycles[337].fetch_op = Ppu::FETCH_OP_NT_BYTE_CYC1;
+  cycles[338].fetch_op = Ppu::FETCH_OP_NT_BYTE_CYC2;
+  cycles[339].fetch_op = Ppu::FETCH_OP_NT_BYTE_CYC1;
+  cycles[340].fetch_op = Ppu::FETCH_OP_NT_BYTE_CYC2;
+
+  return cycles;
+}
+
+// Reference: https://www.nesdev.org/wiki/PPU_rendering#Frame_timing_diagram
+static constexpr auto init_pre_render_cycles() {
+  auto cycles = init_visible_frame_cycles();
+  for (int i = 280; i < 305; i++) {
+    cycles[i].v_op = Ppu::V_OP_SET_VERT;
+  }
+  return cycles;
+}
+
+static constexpr auto VISIBLE_FRAME_CYCLES    = init_visible_frame_cycles();
+static constexpr auto PRE_RENDER_FRAME_CYCLES = init_pre_render_cycles();
 
 Ppu::Ppu()
     : cart_(nullptr),
       cpu_(nullptr),
       scanline_(0),
-      scanline_tick_(0),
-      odd_(false),
-      cycles_(0) {}
+      scanline_cycle_(0),
+      odd_frame_(false),
+      cycles_(0),
+      ready_(false) {}
 
 void Ppu::power_up() {
   regs_.PPUCTRL   = 0;
@@ -27,10 +75,10 @@ void Ppu::power_up() {
   std::memset(palette_, 0, sizeof(palette_));
   std::memset(vram_, 0, sizeof(vram_));
 
-  scanline_      = PRERENDER_SCANLINE;
-  scanline_tick_ = 0;
-  odd_           = false;
-  cycles_        = 0;
+  scanline_       = PRE_RENDER_SCANLINE;
+  scanline_cycle_ = 0;
+  odd_frame_      = false;
+  cycles_         = 0;
 }
 
 void Ppu::reset() {
@@ -42,10 +90,10 @@ void Ppu::reset() {
   regs_.x       = 0;
   regs_.w       = 0;
 
-  scanline_      = PRERENDER_SCANLINE;
-  scanline_tick_ = 0;
-  odd_           = false;
-  cycles_        = 0;
+  scanline_       = PRE_RENDER_SCANLINE;
+  scanline_cycle_ = 0;
+  odd_frame_      = false;
+  cycles_         = 0;
 }
 
 static constexpr uint16_t MMAP_ADDR_MASK    = 0x3fff;
@@ -218,26 +266,99 @@ void Ppu::write_OAMDMA([[maybe_unused]] uint8_t x) {
 }
 
 void Ppu::step() {
-  if (scanline_ == 241 && scanline_tick_ == 1) {
-    regs_.PPUSTATUS |= PPUSTATUS_VBLANK;
-  } else if (scanline_ == PRERENDER_SCANLINE && scanline_tick_ == 1) {
-    regs_.PPUSTATUS = 0;
+  assert(scanline_ <= PRE_RENDER_SCANLINE);
+  assert(scanline_cycle_ < SCANLINE_MAX_CYCLES);
+
+  if (scanline_ < VISIBLE_FRAME_END) {
+    step_visible_frame();
+  } else if (scanline_ < PRE_RENDER_SCANLINE) {
+    step_post_render();
+  } else {
+    step_pre_render();
   }
 
-  scanline_tick_++;
   cycles_++;
+}
 
-  if (scanline_ == PRERENDER_SCANLINE) {
-    if (scanline_tick_ - odd_ == 340) {
-      scanline_      = 0;
-      scanline_tick_ = 0;
-    }
-  } else if (scanline_tick_ == 340) {
+void Ppu::step_pre_render() {
+  step_internal(PRE_RENDER_FRAME_CYCLES[scanline_cycle_]);
+
+  if (scanline_cycle_ == 1) {
+    clear_flags();
+  }
+
+  scanline_cycle_++;
+  if (scanline_cycle_ == SCANLINE_MAX_CYCLES - odd_frame_) {
+    scanline_       = 0;
+    scanline_cycle_ = 0;
+  }
+}
+
+void Ppu::step_post_render() {
+  if (scanline_ == 241 && scanline_cycle_ == 1) {
+    set_vblank();
+  }
+
+  scanline_cycle_++;
+  if (scanline_cycle_ == SCANLINE_MAX_CYCLES) {
     scanline_++;
-    scanline_tick_ = 0;
-    if (scanline_ == PRERENDER_SCANLINE) {
-      odd_   = !odd_;
-      ready_ = cycles_ >= READY_CYCLE;
+    scanline_cycle_ = 0;
+    if (scanline_ == PRE_RENDER_SCANLINE) {
+      odd_frame_ = !odd_frame_;
+      ready_     = cycles_ >= READY_CYCLE;
     }
   }
 }
+
+void Ppu::step_visible_frame() {
+  step_internal(VISIBLE_FRAME_CYCLES[scanline_cycle_]);
+
+  if (scanline_cycle_ >= 16 && scanline_cycle_ < 16 + 256) {
+    draw_pixel();
+  }
+
+  scanline_cycle_++;
+  if (scanline_cycle_ == SCANLINE_MAX_CYCLES) {
+    scanline_++;
+    scanline_cycle_ = 0;
+  }
+}
+
+void Ppu::step_internal(CycleOps ops) {
+  switch (ops.v_op) {
+  case V_OP_INC_HORZ: inc_v_horizontal(); break;
+  case V_OP_INC_VERT: inc_v_vertical(); break;
+  case V_OP_SET_HORZ: set_v_horizontal(); break;
+  case V_OP_SET_VERT: set_v_vertical(); break;
+  default: assert(ops.v_op == V_OP_NONE); // no-op
+  }
+
+  switch (ops.fetch_op) {
+  case FETCH_OP_NT_BYTE_CYC1: fetch_NT_byte_cyc1(); break;
+  case FETCH_OP_NT_BYTE_CYC2: fetch_NT_byte_cyc2(); break;
+  case FETCH_OP_AT_BYTE_CYC1: fetch_AT_byte_cyc1(); break;
+  case FETCH_OP_AT_BYTE_CYC2: fetch_AT_byte_cyc2(); break;
+  case FETCH_OP_PT_BYTE_LO_CYC1: fetch_PT_byte_lo_cyc1(); break;
+  case FETCH_OP_PT_BYTE_LO_CYC2: fetch_PT_byte_lo_cyc2(); break;
+  case FETCH_OP_PT_BYTE_HI_CYC1: fetch_PT_byte_hi_cyc1(); break;
+  case FETCH_OP_PT_BYTE_HI_CYC2: fetch_PT_byte_hi_cyc2(); break;
+  default: assert(ops.fetch_op == FETCH_OP_NONE); // no-op
+  }
+}
+
+void Ppu::set_vblank() { regs_.PPUSTATUS |= PPUSTATUS_VBLANK; }
+void Ppu::clear_flags() { regs_.PPUSTATUS &= ~PPUSTATUS_ALL; }
+
+void Ppu::fetch_NT_byte_cyc1() {}
+void Ppu::fetch_NT_byte_cyc2() {}
+void Ppu::fetch_AT_byte_cyc1() {}
+void Ppu::fetch_AT_byte_cyc2() {}
+void Ppu::fetch_PT_byte_lo_cyc1() {}
+void Ppu::fetch_PT_byte_lo_cyc2() {}
+void Ppu::fetch_PT_byte_hi_cyc1() {}
+void Ppu::fetch_PT_byte_hi_cyc2() {}
+void Ppu::inc_v_horizontal() {}
+void Ppu::inc_v_vertical() {}
+void Ppu::set_v_horizontal() {}
+void Ppu::set_v_vertical() {}
+void Ppu::draw_pixel() {}

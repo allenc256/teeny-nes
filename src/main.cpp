@@ -89,10 +89,14 @@ int main() {
   Cpu &cpu = nes.cpu();
   Ppu &ppu = nes.ppu();
 
-  for (int i = 0; i < 8000; i++) {
+  for (int i = 0; i < 10000; i++) {
     std::cout << cpu.disassemble();
     std::cout << std::format(
-        " {:03d},{:03d}\n", ppu.scanline(), ppu.scanline_tick()
+        " {:03d},{:03d},{},{}\n",
+        ppu.scanline(),
+        ppu.scanline_tick(),
+        (int)ppu.odd_frame(),
+        (int)ppu.ready()
     );
     nes.step();
   }

@@ -107,3 +107,17 @@ TEST(Ppu, internal_registers_2) {
 
   ASSERT_NO_FATAL_FAILURE(test_int_regs_2(ppu));
 }
+
+TEST(Ppu, ready) {
+  static constexpr int cycles_in_frame = 262 * 341;
+
+  Ppu ppu;
+
+  ppu.power_up();
+  ASSERT_EQ(0, ppu.cycles());
+  ASSERT_FALSE(ppu.ready());
+  for (int i = 0; i < cycles_in_frame; i++) {
+    ppu.step();
+  }
+  ASSERT_TRUE(ppu.ready());
+}
