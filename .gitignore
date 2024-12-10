@@ -37,3 +37,4 @@ notes/
 *.ipynb
 .ipynb_checkpoints/
 test_data/single_step/
+imgui.ini

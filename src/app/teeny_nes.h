@@ -6,9 +6,9 @@
 #include "src/app/stats.h"
 #include "src/emu/nes.h"
 
-class App {
+class TeenyNes {
 public:
-  App();
+  TeenyNes();
 
   void run();
 
