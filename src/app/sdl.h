@@ -41,3 +41,5 @@ public:
 private:
   SDL_Texture *texture_;
 };
+
+void clear_texture(SDL_Texture *texture, int height);

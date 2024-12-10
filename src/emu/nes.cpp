@@ -2,7 +2,7 @@
 
 #include "src/emu/nes.h"
 
-Nes::Nes() {
+Nes::Nes() : powered_up_(false) {
   cpu_.set_apu(&apu_);
   cpu_.set_ppu(&ppu_);
   ppu_.set_cpu(&cpu_);
@@ -10,15 +10,23 @@ Nes::Nes() {
 
 void Nes::power_up() {
   if (!cart_) {
-    throw std::runtime_error("cannot power up without cart");
+    throw std::runtime_error("cannot power up without loading cart first");
+  }
+  if (powered_up_) {
+    throw std::runtime_error("system already powered up");
   }
 
   cpu_.power_up();
   ppu_.power_up();
   apu_.power_up();
+  powered_up_ = true;
 }
 
 void Nes::reset() {
+  if (!powered_up_) {
+    throw std::runtime_error("system hasn't been powered up yet");
+  }
+
   cpu_.reset();
   ppu_.reset();
   apu_.reset();

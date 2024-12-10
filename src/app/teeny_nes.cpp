@@ -10,8 +10,17 @@ TeenyNes::TeenyNes()
       renderer_(window_.get()),
       imgui_(window_.get(), renderer_.get()),
       show_pattern_table_(true),
-      pattern_table_(renderer_.get()),
-      show_stats_(true) {}
+      show_name_table_(true),
+      show_stats_(true),
+      pattern_table_(nes_, renderer_.get()),
+      name_table_(nes_, renderer_.get()),
+      stats_(nes_) {
+  nes_.load_cart("hello_world.nes");
+  nes_.power_up();
+  while (nes_.ppu().frames() < 2) {
+    nes_.step();
+  }
+}
 
 void TeenyNes::run() {
   ImGuiIO &io = ImGui::GetIO();
@@ -28,23 +37,13 @@ void TeenyNes::run() {
           event.window.windowID == SDL_GetWindowID(window_.get()))
         done = true;
     }
-
-    ImGui_ImplSDLRenderer2_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
-
-    // ImGui::ShowDemoWindow();
-
-    render_menu();
-
-    if (show_pattern_table_) {
-      pattern_table_.render();
-    }
-    if (show_stats_) {
-      stats_.render();
+    if (SDL_GetWindowFlags(window_.get()) & SDL_WINDOW_MINIMIZED) {
+      SDL_Delay(10);
+      continue;
     }
 
-    ImGui::Render();
+    render_imgui();
+
     SDL_RenderSetScale(
         renderer_.get(),
         io.DisplayFramebufferScale.x,
@@ -66,10 +65,33 @@ void TeenyNes::run() {
   }
 }
 
-void TeenyNes::render_menu() {
+void TeenyNes::render_imgui() {
+  ImGui_ImplSDLRenderer2_NewFrame();
+  ImGui_ImplSDL2_NewFrame();
+  ImGui::NewFrame();
+
+  ImGui::ShowDemoWindow();
+
+  render_imgui_menu();
+
+  if (show_pattern_table_) {
+    pattern_table_.render();
+  }
+  if (show_name_table_) {
+    name_table_.render();
+  }
+  if (show_stats_) {
+    stats_.render();
+  }
+
+  ImGui::Render();
+}
+
+void TeenyNes::render_imgui_menu() {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("Debug")) {
       ImGui::MenuItem("Show Pattern Table", nullptr, &show_pattern_table_);
+      ImGui::MenuItem("Show Name Table", nullptr, &show_name_table_);
       ImGui::MenuItem("Show Stats", nullptr, &show_stats_);
       ImGui::EndMenu();
     }

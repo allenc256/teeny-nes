@@ -57,6 +57,7 @@ public:
   int64_t    cycles() const { return cycles_; }
   int64_t    frames() const { return frames_; }
   bool       ready() const { return ready_; }
+  uint16_t   bg_pattern_table_addr() const;
 
   uint8_t read_PPUCTRL();
   uint8_t read_PPUMASK();

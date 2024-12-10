@@ -17,6 +17,7 @@ public:
   void power_up();
   void reset();
   void step();
+  bool is_powered_up() const { return powered_up_; }
 
   void load_cart(std::string_view path);
 
@@ -25,4 +26,5 @@ private:
   Ppu                   ppu_;
   Apu                   apu_;
   std::unique_ptr<Cart> cart_;
+  bool                  powered_up_;
 };

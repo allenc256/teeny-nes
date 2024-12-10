@@ -121,3 +121,11 @@ TEST(Ppu, ready) {
   }
   ASSERT_TRUE(ppu.ready());
 }
+
+TEST(Ppu, bg_pattern_table_addr) {
+  Ppu ppu;
+  ppu.registers().PPUCTRL = 0;
+  ASSERT_EQ(ppu.bg_pattern_table_addr(), 0);
+  ppu.registers().PPUCTRL = 0b00010000;
+  ASSERT_EQ(ppu.bg_pattern_table_addr(), 0x1000);
+}

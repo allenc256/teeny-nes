@@ -60,6 +60,10 @@ Ppu::Ppu()
       frames_(0),
       ready_(false) {}
 
+uint16_t Ppu::bg_pattern_table_addr() const {
+  return (uint16_t)((regs_.PPUCTRL & PPUCTRL_BG_ADDR) << 8);
+}
+
 void Ppu::power_up() {
   regs_.PPUCTRL   = 0;
   regs_.PPUMASK   = 0;

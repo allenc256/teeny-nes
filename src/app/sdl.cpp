@@ -64,3 +64,11 @@ SDLTextureRes::SDLTextureRes(SDL_Renderer *renderer, int width, int height) {
 }
 
 SDLTextureRes::~SDLTextureRes() { SDL_DestroyTexture(texture_); }
+
+void clear_texture(SDL_Texture *texture, int height) {
+  int   pitch;
+  void *pixels;
+  SDL_LockTexture(texture, nullptr, &pixels, &pitch);
+  std::memset(pixels, 0, pitch * height);
+  SDL_UnlockTexture(texture);
+}
