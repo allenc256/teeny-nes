@@ -5,8 +5,6 @@
 #include <iostream>
 #include <sstream>
 
-#include "src/emu/cycles.h"
-
 class Cart;
 class Ppu;
 class Apu;

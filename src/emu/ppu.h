@@ -2,8 +2,6 @@
 
 #include <cstdint>
 
-#include "src/emu/cycles.h"
-
 class Cpu;
 class Cart;
 
