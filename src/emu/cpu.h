@@ -1,11 +1,11 @@
 #pragma once
 
-#include "emu/cycles.h"
-
 #include <cassert>
 #include <cstdint>
 #include <iostream>
 #include <sstream>
+
+#include "src/emu/cycles.h"
 
 class Cart;
 class Ppu;

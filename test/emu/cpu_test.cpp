@@ -1,7 +1,3 @@
-#include "emu/apu.h"
-#include "emu/cart.h"
-#include "emu/cpu.h"
-
 #define JSON_USE_IMPLICIT_CONVERSIONS 0
 
 #include <format>
@@ -10,6 +6,10 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <nlohmann/json.hpp>
+
+#include "src/emu/apu.h"
+#include "src/emu/cart.h"
+#include "src/emu/cpu.h"
 
 static bool compare_log_lines(const std::string &exp, const std::string &act) {
   if (exp.size() != act.size()) {

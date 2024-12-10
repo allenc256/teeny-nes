@@ -1,11 +1,11 @@
-#include "emu/ppu.h"
-#include "emu/cart.h"
-#include "emu/cpu.h"
-
 #include <array>
 #include <cassert>
 #include <cstring>
 #include <format>
+
+#include "src/emu/cart.h"
+#include "src/emu/cpu.h"
+#include "src/emu/ppu.h"
 
 static constexpr int SCANLINE_MAX_CYCLES = 341;
 

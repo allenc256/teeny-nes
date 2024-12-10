@@ -13,5 +13,5 @@ add_library(teenynes_test_lib STATIC ${SOURCES})
 target_compile_options(teenynes PRIVATE ${CXX_FLAGS})
 target_compile_options(teenynes_test_lib PRIVATE ${CXX_FLAGS})
 
-target_include_directories(teenynes PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(teenynes_test_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(teenynes PRIVATE ${PROJECT_SOURCE_DIR})
+target_include_directories(teenynes_test_lib PUBLIC ${PROJECT_SOURCE_DIR})

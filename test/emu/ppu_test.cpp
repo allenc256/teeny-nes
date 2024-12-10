@@ -1,7 +1,7 @@
-#include "emu/ppu.h"
-
 #include <format>
 #include <gtest/gtest.h>
+
+#include "src/emu/ppu.h"
 
 void check_int_regs(const Ppu::Registers &exp, const Ppu::Registers &act) {
   ASSERT_EQ(exp.t, act.t) << std::format(

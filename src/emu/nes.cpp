@@ -1,6 +1,6 @@
-#include "emu/nes.h"
-
 #include <fstream>
+
+#include "src/emu/nes.h"
 
 Nes::Nes() {
   cpu_.set_apu(&apu_);
