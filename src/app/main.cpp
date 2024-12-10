@@ -1,4 +1,4 @@
-#include "nes.h"
+#include "emu/nes.h"
 
 #include <cstring>
 #include <format>
@@ -95,8 +95,8 @@ int main() {
         " {:03d},{:03d},{},{}\n",
         ppu.scanline(),
         ppu.scanline_tick(),
-        (int)ppu.odd_frame(),
-        (int)ppu.ready()
+        (int)ppu.ready(),
+        ppu.cycles()
     );
     nes.step();
   }

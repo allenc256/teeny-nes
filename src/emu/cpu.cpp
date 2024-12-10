@@ -1,7 +1,7 @@
-#include "cpu.h"
-#include "apu.h"
-#include "cart.h"
-#include "ppu.h"
+#include "emu/cpu.h"
+#include "emu/apu.h"
+#include "emu/cart.h"
+#include "emu/ppu.h"
 
 #include <cstring>
 #include <format>

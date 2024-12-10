@@ -1,9 +1,9 @@
 #pragma once
 
-#include "apu.h"
-#include "cart.h"
-#include "cpu.h"
-#include "ppu.h"
+#include "emu/apu.h"
+#include "emu/cart.h"
+#include "emu/cpu.h"
+#include "emu/ppu.h"
 
 class Nes {
 public:

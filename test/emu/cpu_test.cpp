@@ -1,6 +1,6 @@
-#include "apu.h"
-#include "cart.h"
-#include "cpu.h"
+#include "emu/apu.h"
+#include "emu/cart.h"
+#include "emu/cpu.h"
 
 #define JSON_USE_IMPLICIT_CONVERSIONS 0
 

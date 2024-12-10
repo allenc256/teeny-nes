@@ -1,6 +1,6 @@
-#include "ppu.h"
-#include "cart.h"
-#include "cpu.h"
+#include "emu/ppu.h"
+#include "emu/cart.h"
+#include "emu/cpu.h"
 
 #include <array>
 #include <cassert>

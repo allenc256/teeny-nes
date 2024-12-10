@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cycles.h"
+#include "emu/cycles.h"
 
 #include <cassert>
 #include <cstdint>
