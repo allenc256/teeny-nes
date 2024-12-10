@@ -57,7 +57,7 @@ public:
   int        scanline() const { return scanline_; }
   int        scanline_tick() const { return scanline_cycle_; }
   int64_t    cycles() const { return cycles_; }
-  bool       odd_frame() const { return odd_frame_; }
+  int64_t    frames() const { return frames_; }
   bool       ready() const { return ready_; }
 
   uint8_t read_PPUCTRL();
@@ -160,9 +160,6 @@ private:
   static constexpr int VISIBLE_FRAME_END   = 240;
   static constexpr int PRE_RENDER_SCANLINE = 261;
 
-  // The cycle at which PPU is ready to accept writes (one frame's worth).
-  static constexpr int64_t READY_CYCLE = 262 * 341 - 1;
-
   static_assert(sizeof(Ppu::CycleOps) == 1);
 
   void step_pre_render();
@@ -194,10 +191,10 @@ private:
   Cpu      *cpu_;
   int       scanline_;
   int       scanline_cycle_;
-  bool      odd_frame_;
   int64_t   cycles_; // since reset
+  int64_t   frames_; // since reset
 
   // Readiness for writes. This is a separate flag rather than just checking the
-  // cycle count so that we can force it to true in tests.
+  // cycle or frame count so that we can force it to true in tests.
   bool ready_;
 };

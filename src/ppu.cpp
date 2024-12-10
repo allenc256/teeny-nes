@@ -56,8 +56,8 @@ Ppu::Ppu()
       cpu_(nullptr),
       scanline_(0),
       scanline_cycle_(0),
-      odd_frame_(false),
       cycles_(0),
+      frames_(0),
       ready_(false) {}
 
 void Ppu::power_up() {
@@ -77,8 +77,8 @@ void Ppu::power_up() {
 
   scanline_       = PRE_RENDER_SCANLINE;
   scanline_cycle_ = 0;
-  odd_frame_      = false;
   cycles_         = 0;
+  frames_         = 0;
 }
 
 void Ppu::reset() {
@@ -92,8 +92,8 @@ void Ppu::reset() {
 
   scanline_       = PRE_RENDER_SCANLINE;
   scanline_cycle_ = 0;
-  odd_frame_      = false;
   cycles_         = 0;
+  frames_         = 0;
 }
 
 static constexpr uint16_t MMAP_ADDR_MASK    = 0x3fff;
@@ -205,8 +205,8 @@ void Ppu::write_OAMDATA(uint8_t x) {
   // nesdev.org suggests ignoring writes entirely when rendering (on the
   // pre-render line and the visible lines 0–239, provided either sprite or
   // background rendering is enabled).
-  if (regs_.PPUMASK & PPUMASK_RENDERING) {
-    // TODO: check the scanline here!!!
+  if (regs_.PPUMASK & PPUMASK_RENDERING &&
+      (scanline_ == PRE_RENDER_SCANLINE || scanline_ < VISIBLE_FRAME_END)) {
     return;
   }
 
@@ -262,7 +262,7 @@ void Ppu::write_PPUDATA(uint8_t x) {
 }
 
 void Ppu::write_OAMDMA([[maybe_unused]] uint8_t x) {
-  throw std::runtime_error("not implemented yet");
+  // TODO: implement OAMDMA
 }
 
 void Ppu::step() {
@@ -288,7 +288,7 @@ void Ppu::step_pre_render() {
   }
 
   scanline_cycle_++;
-  if (scanline_cycle_ == SCANLINE_MAX_CYCLES - odd_frame_) {
+  if (scanline_cycle_ == SCANLINE_MAX_CYCLES - (int)(frames_ & 1)) {
     scanline_       = 0;
     scanline_cycle_ = 0;
   }
@@ -304,8 +304,8 @@ void Ppu::step_post_render() {
     scanline_++;
     scanline_cycle_ = 0;
     if (scanline_ == PRE_RENDER_SCANLINE) {
-      odd_frame_ = !odd_frame_;
-      ready_     = cycles_ >= READY_CYCLE;
+      frames_++;
+      ready_ = frames_ >= 1;
     }
   }
 }
