@@ -3,18 +3,15 @@
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_sdlrenderer2.h>
 
+#include "src/app/palette.h"
 #include "src/app/teeny_nes.h"
 
 TeenyNes::TeenyNes()
     : window_("teeny-nes", 1024, 768),
       renderer_(window_.get()),
       imgui_(window_.get(), renderer_.get()),
-      show_pattern_table_(true),
-      show_name_table_(true),
-      show_stats_(true),
-      pattern_table_(nes_, renderer_.get()),
-      name_table_(nes_, renderer_.get()),
-      stats_(nes_) {
+      show_ppu_window_(true),
+      ppu_window_(nes_, renderer_.get()) {
   nes_.load_cart("hello_world.nes");
   nes_.power_up();
   while (nes_.ppu().frames() < 2) {
@@ -41,6 +38,8 @@ void TeenyNes::run() {
       SDL_Delay(10);
       continue;
     }
+
+    show_ppu_window_ &= nes_.is_powered_up();
 
     render_imgui();
 
@@ -74,14 +73,8 @@ void TeenyNes::render_imgui() {
 
   render_imgui_menu();
 
-  if (show_pattern_table_) {
-    pattern_table_.render();
-  }
-  if (show_name_table_) {
-    name_table_.render();
-  }
-  if (show_stats_) {
-    stats_.render();
+  if (show_ppu_window_) {
+    ppu_window_.render();
   }
 
   ImGui::Render();
@@ -90,9 +83,9 @@ void TeenyNes::render_imgui() {
 void TeenyNes::render_imgui_menu() {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("Debug")) {
-      ImGui::MenuItem("Show Pattern Table", nullptr, &show_pattern_table_);
-      ImGui::MenuItem("Show Name Table", nullptr, &show_name_table_);
-      ImGui::MenuItem("Show Stats", nullptr, &show_stats_);
+      ImGui::MenuItem(
+          "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_up()
+      );
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();

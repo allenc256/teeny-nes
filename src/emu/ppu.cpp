@@ -102,6 +102,8 @@ void Ppu::reset() {
 
 static constexpr uint16_t MMAP_ADDR_MASK    = 0x3fff;
 static constexpr uint16_t PALETTE_ADDR_MASK = 0x001f;
+static constexpr uint16_t PALETTE_COL_MASK  = 0x0003;
+static constexpr uint16_t PALETTE_SPR_MASK  = 0xffef;
 
 void Ppu::poke(uint16_t addr, uint8_t x) {
   addr &= MMAP_ADDR_MASK;
@@ -112,6 +114,11 @@ void Ppu::poke(uint16_t addr, uint8_t x) {
       vram_[p.address()] = x;
     }
   } else {
+    // Map writes to sprite palette for color 0 to bg palette (color 0 is shared
+    // between sprite and bg on NES).
+    if (!(addr & PALETTE_COL_MASK)) {
+      addr &= PALETTE_SPR_MASK;
+    }
     palette_[addr & PALETTE_ADDR_MASK] = x;
   }
 }
@@ -127,6 +134,11 @@ uint8_t Ppu::peek(uint16_t addr) {
       return vram_[p.address()];
     }
   } else {
+    // Map writes to sprite palette for color 0 to bg palette (color 0 is shared
+    // between sprite and bg on NES).
+    if (!(addr & PALETTE_COL_MASK)) {
+      addr &= PALETTE_SPR_MASK;
+    }
     return palette_[addr & PALETTE_ADDR_MASK];
   }
   throw std::runtime_error("not implemented yet");
