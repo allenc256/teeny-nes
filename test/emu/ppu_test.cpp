@@ -129,34 +129,3 @@ TEST(Ppu, bg_pattern_table_addr) {
   ppu.registers().PPUCTRL = 0b00010000;
   ASSERT_EQ(ppu.bg_pattern_table_addr(), 0x1000);
 }
-
-TEST(Ppu, v_reg_components) {
-  constexpr std::array<int, 3> fine   = {0, 1, 7};
-  constexpr std::array<int, 3> coarse = {0, 1, 31};
-
-  Ppu ppu;
-  ppu.power_up();
-  for (int fine_y : fine) {
-    for (int coarse_x : coarse) {
-      for (int coarse_y : coarse) {
-        ppu.set_coarse_x_scroll(coarse_x);
-        ppu.set_coarse_y_scroll(coarse_y);
-        ppu.set_fine_y_scroll(fine_y);
-        ASSERT_EQ(coarse_x, ppu.coarse_x_scroll());
-        ASSERT_EQ(coarse_y, ppu.coarse_y_scroll());
-        ASSERT_EQ(fine_y, ppu.fine_y_scroll());
-      }
-    }
-  }
-}
-
-TEST(Ppu, v_reg_component_overflow) {
-  Ppu ppu;
-  ppu.power_up();
-  ppu.set_coarse_x_scroll(32);
-  ASSERT_EQ(ppu.coarse_x_scroll(), 0);
-  ppu.set_coarse_y_scroll(32);
-  ASSERT_EQ(ppu.coarse_y_scroll(), 0);
-  ppu.set_fine_y_scroll(8);
-  ASSERT_EQ(ppu.fine_y_scroll(), 0);
-}

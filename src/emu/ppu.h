@@ -63,15 +63,6 @@ public:
   uint16_t bg_pattern_table_addr() const;
   bool     bg_rendering() const;
 
-  int  fine_x_scroll() const;
-  int  fine_y_scroll() const;
-  int  coarse_x_scroll() const;
-  int  coarse_y_scroll() const;
-  void set_fine_x_scroll(int x);
-  void set_fine_y_scroll(int y);
-  void set_coarse_x_scroll(int x);
-  void set_coarse_y_scroll(int y);
-
   uint8_t read_PPUCTRL();
   uint8_t read_PPUMASK();
   uint8_t read_PPUSTATUS();
@@ -167,6 +158,18 @@ private:
   static constexpr uint8_t PPUSTATUS_VBLANK  = 0b10000000;
   static constexpr uint8_t PPUSTATUS_ALL     = 0b11100000;
 
+  static constexpr uint16_t V_COARSE_X     = 0b00000000'00011111;
+  static constexpr uint16_t V_COARSE_Y     = 0b00000011'11100000;
+  static constexpr uint16_t V_NAME_TABLE   = 0b00001100'00000000;
+  static constexpr uint16_t V_NAME_TABLE_H = 0b00000100'00000000;
+  static constexpr uint16_t V_NAME_TABLE_V = 0b00001000'00000000;
+  static constexpr uint16_t V_FINE_Y       = 0b01110000'00000000;
+  static constexpr uint16_t V_HI           = 0b01111111'00000000;
+  static constexpr uint16_t V_LO           = 0b00000000'11111111;
+  static constexpr int      V_COARSE_X_MAX = 31;
+  static constexpr int      V_COARSE_Y_MAX = 29;
+  static constexpr int      V_FINE_Y_MAX   = 7;
+
   static constexpr int VISIBLE_FRAME_END   = 240;
   static constexpr int PRE_RENDER_SCANLINE = 261;
 
@@ -174,9 +177,6 @@ private:
   void execute_ops(uint16_t op_mask);
 
   uint8_t read_open_bus();
-
-  void next_horz_name_table();
-  void next_vert_name_table();
 
   void op_fetch_nt();
   void op_fetch_at();

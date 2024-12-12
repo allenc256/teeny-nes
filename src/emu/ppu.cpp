@@ -1,4 +1,5 @@
 #include <array>
+#include <bit>
 #include <cassert>
 #include <cstring>
 #include <format>
@@ -8,6 +9,31 @@
 #include "src/emu/ppu.h"
 
 using enum Ppu::Ops;
+
+template <uint16_t mask> constexpr uint16_t get_bits(uint16_t x) {
+  constexpr int off = std::countr_zero(mask);
+  return (x & mask) >> off;
+}
+
+template <uint16_t mask> constexpr void set_bits(uint16_t &bits, int x) {
+  constexpr int off = std::countr_zero(mask);
+  bits              = (bits & ~mask) | ((x << off) & mask);
+}
+
+template <uint16_t mask> constexpr void copy_bits(uint16_t from, uint16_t &to) {
+  set_bits<mask>(to, get_bits<mask>(from));
+}
+
+template <uint16_t mask, int max> constexpr bool inc_bits(uint16_t &bits) {
+  int x = get_bits<mask>(bits);
+  if (x < max) {
+    set_bits<mask>(bits, x + 1);
+    return false;
+  } else {
+    set_bits<mask>(bits, 0);
+    return true;
+  }
+}
 
 static constexpr int SCANLINE_MAX_CYCLES = 341;
 
@@ -117,26 +143,6 @@ uint16_t Ppu::bg_pattern_table_addr() const {
 }
 
 bool Ppu::bg_rendering() const { return regs_.PPUMASK & PPUMASK_BG_RENDERING; }
-
-int  Ppu::fine_x_scroll() const { return regs_.x; }
-int  Ppu::fine_y_scroll() const { return regs_.v >> 12; }
-int  Ppu::coarse_x_scroll() const { return regs_.v & 0x001f; }
-int  Ppu::coarse_y_scroll() const { return (regs_.v >> 5) & 0x001f; }
-void Ppu::set_fine_x_scroll(int x) { regs_.x = x & 7; }
-void Ppu::next_horz_name_table() { regs_.v ^= 0x0400; }
-void Ppu::next_vert_name_table() { regs_.v ^= 0x0800; }
-
-void Ppu::set_fine_y_scroll(int y) {
-  regs_.v = (uint16_t)((regs_.v & 0x0fff) | ((y & 7) << 12));
-}
-
-void Ppu::set_coarse_x_scroll(int x) {
-  regs_.v = (uint16_t)((regs_.v & 0x7fe0) | (x & 31));
-}
-
-void Ppu::set_coarse_y_scroll(int y) {
-  regs_.v = (uint16_t)((regs_.v & 0x7c1f) | ((y & 31) << 5));
-}
 
 void Ppu::power_up() {
   regs_.PPUCTRL     = 0;
@@ -276,11 +282,7 @@ void Ppu::write_PPUCTRL(uint8_t x) {
   }
 
   regs_.PPUCTRL = x;
-
-  uint16_t t = regs_.t;
-  t &= 0x73ff;
-  t |= (x & 3) << 10;
-  regs_.t = t;
+  set_bits<V_NAME_TABLE>(regs_.t, x);
 
   // TODO: emulate "Bit 0 race condition" from
   // https://www.nesdev.org/wiki/PPU_registers#PPUCTRL
@@ -323,19 +325,12 @@ void Ppu::write_PPUSCROLL(uint8_t x) {
   }
 
   if (!regs_.w) {
-    uint16_t t = regs_.t;
-    t &= 0x7fe0;
-    t |= x >> 3;
-    regs_.t = t;
+    set_bits<V_COARSE_X>(regs_.t, x >> 3);
     regs_.x = x & 7;
     regs_.w = 1;
   } else {
-    uint16_t t = regs_.t;
-    t &= 0x0c1f;
-    t |= (x & 0b11000000) << 2;
-    t |= (x & 0b00111000) << 2;
-    t |= (x & 0b00000111) << 12;
-    regs_.t = t;
+    set_bits<V_COARSE_Y>(regs_.t, x >> 3);
+    set_bits<V_FINE_Y>(regs_.t, x & 7);
     regs_.w = 0;
   }
 }
@@ -346,10 +341,10 @@ void Ppu::write_PPUADDR(uint8_t x) {
   }
 
   if (!regs_.w) {
-    regs_.t = (uint16_t)((regs_.t & 0x00ff) | ((x & 0x3f) << 8));
+    set_bits<V_HI>(regs_.t, x & 0x3f);
     regs_.w = 1;
   } else {
-    regs_.t = (regs_.t & 0xff00) | x;
+    set_bits<V_LO>(regs_.t, x);
     regs_.v = regs_.t;
     regs_.w = 0;
   }
@@ -391,7 +386,7 @@ void Ppu::next_dot() {
     return;
   }
 
-  // Overflow -> increment scanline.
+  // Dot overflow -> increment scanline.
   dot_ = 0;
   scanline_++;
   if (scanline_ < PRE_RENDER_SCANLINE) {
@@ -402,7 +397,7 @@ void Ppu::next_dot() {
     return;
   }
 
-  // Overflow -> wrap back to 0.
+  // Scanline overflow -> wrap back to 0.
   scanline_      = 0;
   bool odd_frame = frames_ & 1;
   if (bg_rendering() && odd_frame) {
@@ -456,10 +451,8 @@ void Ppu::op_s_reg_shift_sp() {
 
 void Ppu::op_s_reg_reload_bg() {
   assert(bg_rendering());
-  regs_.shift_bg_lo =
-      (uint16_t)((regs_.shift_bg_lo & 0xff) | (regs_.fetch_bg_lo << 8));
-  regs_.shift_bg_hi =
-      (uint16_t)((regs_.shift_bg_hi & 0xff) | (regs_.fetch_bg_hi << 8));
+  set_bits<0xff00>(regs_.shift_bg_lo, regs_.fetch_bg_lo);
+  set_bits<0xff00>(regs_.shift_bg_hi, regs_.fetch_bg_hi);
 }
 
 void Ppu::op_fetch_nt() {
@@ -476,7 +469,7 @@ void Ppu::op_fetch_bg_lo() {
   assert(bg_rendering());
   uint16_t addr = bg_pattern_table_addr();
   addr += regs_.fetch_nt << 4;
-  addr += fine_y_scroll();
+  addr += get_bits<V_FINE_Y>(regs_.v);
   regs_.fetch_bg_lo = peek(addr);
 }
 
@@ -484,7 +477,7 @@ void Ppu::op_fetch_bg_hi() {
   assert(bg_rendering());
   uint16_t addr = bg_pattern_table_addr();
   addr += regs_.fetch_nt << 4;
-  addr += fine_y_scroll();
+  addr += get_bits<V_FINE_Y>(regs_.v);
   addr += 8;
   regs_.fetch_bg_lo = peek(addr);
 }
@@ -498,41 +491,29 @@ void Ppu::op_flag_clear() { regs_.PPUSTATUS &= ~PPUSTATUS_ALL; }
 
 void Ppu::op_v_reg_inc_horz() {
   assert(bg_rendering());
-
-  // Increment coarse x.
-  int x = coarse_x_scroll();
-  if (x < 31) {
-    regs_.v++;
-    return;
+  bool overflow = inc_bits<V_COARSE_X, V_COARSE_X_MAX>(regs_.v);
+  if (overflow) {
+    regs_.v ^= V_NAME_TABLE_H;
   }
-
-  // Coarse x overflow.
-  set_coarse_x_scroll(0);
-  next_horz_name_table();
 }
 
 void Ppu::op_v_reg_inc_vert() {
   assert(bg_rendering());
-
-  // Increment fine y.
-  int y0 = fine_y_scroll();
-  if (y0 < 7) {
-    set_fine_y_scroll(y0 + 1);
-    return;
+  bool overflow = inc_bits<V_FINE_Y, V_FINE_Y_MAX>(regs_.v);
+  if (overflow) {
+    overflow = inc_bits<V_COARSE_Y, V_COARSE_Y_MAX>(regs_.v);
+    if (overflow) {
+      regs_.v ^= V_NAME_TABLE_V;
+    }
   }
-
-  // Fine y overflow -> increment coarse y.
-  set_fine_y_scroll(0);
-  int y1 = coarse_y_scroll();
-  if (y1 < 29) {
-    set_coarse_y_scroll(y1 + 1);
-    return;
-  }
-
-  // Coarse y overflow.
-  set_coarse_y_scroll(0);
-  next_vert_name_table();
 }
 
-void Ppu::op_v_reg_set_horz() {}
-void Ppu::op_v_reg_set_vert() {}
+void Ppu::op_v_reg_set_horz() {
+  copy_bits<V_COARSE_X>(regs_.t, regs_.v);
+  copy_bits<V_NAME_TABLE_H>(regs_.t, regs_.v);
+}
+
+void Ppu::op_v_reg_set_vert() {
+  copy_bits<V_COARSE_Y>(regs_.t, regs_.v);
+  copy_bits<V_NAME_TABLE_V>(regs_.t, regs_.v);
+}
