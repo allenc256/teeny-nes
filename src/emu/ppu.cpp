@@ -7,55 +7,107 @@
 #include "src/emu/cpu.h"
 #include "src/emu/ppu.h"
 
+using enum Ppu::Ops;
+
 static constexpr int SCANLINE_MAX_CYCLES = 341;
 
-// Reference: https://www.nesdev.org/wiki/PPU_rendering#Frame_timing_diagram
-static constexpr auto init_visible_frame_cycles() {
-  std::array<Ppu::CycleOps, SCANLINE_MAX_CYCLES> cycles;
-
-  for (int i = 8; i < 256; i += 8) {
-    cycles[i].v_op = Ppu::V_OP_INC_HORZ;
-  }
-  cycles[256].v_op = Ppu::V_OP_INC_HORZ;
-  cycles[257].v_op = Ppu::V_OP_SET_HORZ;
-  cycles[328].v_op = Ppu::V_OP_INC_HORZ;
-  cycles[336].v_op = Ppu::V_OP_INC_HORZ;
-
-  for (int i = 0; i < 256; i += 8) {
-    for (int j = 1; j <= 8; j++) {
-      cycles[i + j].fetch_op = (Ppu::FetchOp)j;
-    }
-  }
-  for (int i = 320; i < 336; i += 8) {
-    for (int j = 1; j <= 8; j++) {
-      cycles[i + j].fetch_op = (Ppu::FetchOp)j;
-    }
-  }
-  cycles[337].fetch_op = Ppu::FETCH_OP_NT_BYTE_CYC1;
-  cycles[338].fetch_op = Ppu::FETCH_OP_NT_BYTE_CYC2;
-  cycles[339].fetch_op = Ppu::FETCH_OP_NT_BYTE_CYC1;
-  cycles[340].fetch_op = Ppu::FETCH_OP_NT_BYTE_CYC2;
-
-  return cycles;
+static constexpr void add_op(uint16_t &flags, Ppu::Ops op) {
+  flags |= (uint16_t)(1u << op);
 }
 
-// Reference: https://www.nesdev.org/wiki/PPU_rendering#Frame_timing_diagram
-static constexpr auto init_pre_render_cycles() {
-  auto cycles = init_visible_frame_cycles();
-  for (int i = 280; i < 305; i++) {
-    cycles[i].v_op = Ppu::V_OP_SET_VERT;
+static void init_op_table_common(uint16_t *ops) {
+  // Shift register ops.
+  for (int i = 2; i <= 257; i++) {
+    add_op(ops[i], OP_S_REG_SHIFT_BG);
+    add_op(ops[i], OP_S_REG_SHIFT_SP);
   }
-  return cycles;
+  for (int i = 322; i <= 337; i++) {
+    add_op(ops[i], OP_S_REG_SHIFT_BG);
+  }
+  for (int i = 9; i <= 257; i += 8) {
+    add_op(ops[i], OP_S_REG_RELOAD_BG);
+  }
+  add_op(ops[329], OP_S_REG_RELOAD_BG);
+  add_op(ops[337], OP_S_REG_RELOAD_BG);
+
+  // Fetch ops.
+  // N.B., garbage NT fetches are NOT emulated.
+  for (int i = 1; i <= 256; i += 8) {
+    add_op(ops[i], OP_FETCH_NT);
+    add_op(ops[i + 2], OP_FETCH_AT);
+    add_op(ops[i + 4], OP_FETCH_BG_LO);
+    add_op(ops[i + 6], OP_FETCH_BG_HI);
+  }
+  for (int i = 321; i <= 336; i += 8) {
+    add_op(ops[i], OP_FETCH_NT);
+    add_op(ops[i + 2], OP_FETCH_AT);
+    add_op(ops[i + 4], OP_FETCH_BG_LO);
+    add_op(ops[i + 6], OP_FETCH_BG_HI);
+  }
+
+  // v register ops.
+  for (int i = 8; i <= 256; i += 8) {
+    add_op(ops[i], OP_V_REG_INC_HORZ);
+  }
+  add_op(ops[256], OP_V_REG_INC_VERT);
+  add_op(ops[257], OP_V_REG_SET_VERT);
+  add_op(ops[328], OP_V_REG_INC_HORZ);
+  add_op(ops[336], OP_V_REG_INC_HORZ);
 }
 
-static constexpr auto VISIBLE_FRAME_CYCLES    = init_visible_frame_cycles();
-static constexpr auto PRE_RENDER_FRAME_CYCLES = init_pre_render_cycles();
+static auto init_visible_frame_op_table() {
+  std::array<uint16_t, 341> ops = {0};
+  init_op_table_common(ops.data());
+  for (int i = 2; i <= 257; i++) {
+    add_op(ops[i], OP_DRAW);
+  }
+  return ops;
+}
+
+static auto init_pre_render_op_table() {
+  std::array<uint16_t, 341> ops = {0};
+  init_op_table_common(ops.data());
+  add_op(ops[1], OP_FLAG_CLEAR);
+  for (int i = 280; i <= 304; i++) {
+    add_op(ops[i], OP_V_REG_SET_VERT);
+  }
+  return ops;
+}
+
+static uint16_t init_always_enabled_op_mask() {
+  uint16_t mask = 0;
+  add_op(mask, OP_DRAW);
+  add_op(mask, OP_FLAG_SET_VBLANK);
+  add_op(mask, OP_FLAG_CLEAR);
+  return mask;
+}
+
+static uint16_t init_bg_rendering_op_mask() {
+  uint16_t mask = 0;
+  add_op(mask, OP_S_REG_SHIFT_BG);
+  add_op(mask, OP_S_REG_RELOAD_BG);
+  add_op(mask, OP_FETCH_NT);
+  add_op(mask, OP_FETCH_AT);
+  add_op(mask, OP_FETCH_BG_LO);
+  add_op(mask, OP_FETCH_BG_HI);
+  add_op(mask, OP_V_REG_INC_HORZ);
+  add_op(mask, OP_V_REG_INC_VERT);
+  add_op(mask, OP_V_REG_SET_HORZ);
+  add_op(mask, OP_V_REG_SET_VERT);
+  return mask;
+}
+
+static const auto VISIBLE_FRAME_OP_TABLE = init_visible_frame_op_table();
+static const auto PRE_RENDER_OP_TABLE    = init_pre_render_op_table();
+
+static const uint16_t ALWAYS_ENABLED_OP_MASK = init_always_enabled_op_mask();
+static const uint16_t BG_RENDERING_OP_MASK   = init_bg_rendering_op_mask();
 
 Ppu::Ppu()
     : cart_(nullptr),
       cpu_(nullptr),
       scanline_(0),
-      scanline_cycle_(0),
+      dot_(0),
       cycles_(0),
       frames_(0),
       ready_(false) {}
@@ -64,40 +116,73 @@ uint16_t Ppu::bg_pattern_table_addr() const {
   return (uint16_t)((regs_.PPUCTRL & PPUCTRL_BG_ADDR) << 8);
 }
 
+bool Ppu::bg_rendering() const { return regs_.PPUMASK & PPUMASK_BG_RENDERING; }
+
+int  Ppu::fine_x_scroll() const { return regs_.x; }
+int  Ppu::fine_y_scroll() const { return regs_.v >> 12; }
+int  Ppu::coarse_x_scroll() const { return regs_.v & 0x001f; }
+int  Ppu::coarse_y_scroll() const { return (regs_.v >> 5) & 0x001f; }
+void Ppu::set_fine_x_scroll(int x) { regs_.x = x & 7; }
+void Ppu::next_horz_name_table() { regs_.v ^= 0x0400; }
+void Ppu::next_vert_name_table() { regs_.v ^= 0x0800; }
+
+void Ppu::set_fine_y_scroll(int y) {
+  regs_.v = (uint16_t)((regs_.v & 0x0fff) | ((y & 7) << 12));
+}
+
+void Ppu::set_coarse_x_scroll(int x) {
+  regs_.v = (uint16_t)((regs_.v & 0x7fe0) | (x & 31));
+}
+
+void Ppu::set_coarse_y_scroll(int y) {
+  regs_.v = (uint16_t)((regs_.v & 0x7c1f) | ((y & 31) << 5));
+}
+
 void Ppu::power_up() {
-  regs_.PPUCTRL   = 0;
-  regs_.PPUMASK   = 0;
-  regs_.PPUSTATUS = 0b10100000;
-  regs_.OAMADDR   = 0;
-  regs_.PPUDATA   = 0;
-  regs_.v         = 0;
-  regs_.t         = 0;
-  regs_.x         = 0;
-  regs_.w         = 0;
+  regs_.PPUCTRL     = 0;
+  regs_.PPUMASK     = 0;
+  regs_.PPUSTATUS   = 0b10100000;
+  regs_.OAMADDR     = 0;
+  regs_.PPUDATA     = 0;
+  regs_.v           = 0;
+  regs_.t           = 0;
+  regs_.x           = 0;
+  regs_.w           = 0;
+  regs_.shift_bg_hi = 0;
+  regs_.shift_bg_lo = 0;
+  regs_.fetch_nt    = 0;
+  regs_.fetch_bg_lo = 0;
+  regs_.fetch_bg_hi = 0;
+  scanline_         = PRE_RENDER_SCANLINE;
+  dot_              = 0;
+  cycles_           = 0;
+  frames_           = 0;
 
   std::memset(oam_, 0, sizeof(oam_));
   std::memset(palette_, 0, sizeof(palette_));
   std::memset(vram_, 0, sizeof(vram_));
-
-  scanline_       = PRE_RENDER_SCANLINE;
-  scanline_cycle_ = 0;
-  cycles_         = 0;
-  frames_         = 0;
+  std::memset(frame_bufs_, 0, sizeof(frame_bufs_));
 }
 
 void Ppu::reset() {
   // N.B., nesdev.org says that internal register v is _not_ cleared on reset.
-  regs_.PPUCTRL = 0;
-  regs_.PPUMASK = 0;
-  regs_.PPUDATA = 0;
-  regs_.t       = 0;
-  regs_.x       = 0;
-  regs_.w       = 0;
+  regs_.PPUCTRL     = 0;
+  regs_.PPUMASK     = 0;
+  regs_.PPUDATA     = 0;
+  regs_.t           = 0;
+  regs_.x           = 0;
+  regs_.w           = 0;
+  regs_.shift_bg_hi = 0;
+  regs_.shift_bg_lo = 0;
+  regs_.fetch_nt    = 0;
+  regs_.fetch_bg_lo = 0;
+  regs_.fetch_bg_hi = 0;
+  scanline_         = PRE_RENDER_SCANLINE;
+  dot_              = 0;
+  cycles_           = 0;
+  frames_           = 0;
 
-  scanline_       = PRE_RENDER_SCANLINE;
-  scanline_cycle_ = 0;
-  cycles_         = 0;
-  frames_         = 0;
+  std::memset(frame_bufs_, 0, sizeof(frame_bufs_));
 }
 
 static constexpr uint16_t MMAP_ADDR_MASK    = 0x3fff;
@@ -116,7 +201,8 @@ void Ppu::poke(uint16_t addr, uint8_t x) {
   } else {
     // Map writes to sprite palette for color 0 to bg palette (color 0 is shared
     // between sprite and bg on NES).
-    if (!(addr & PALETTE_COL_MASK)) {
+    bool is_color_zero = !(addr & PALETTE_COL_MASK);
+    if (is_color_zero) {
       addr &= PALETTE_SPR_MASK;
     }
     palette_[addr & PALETTE_ADDR_MASK] = x;
@@ -136,7 +222,8 @@ uint8_t Ppu::peek(uint16_t addr) {
   } else {
     // Map writes to sprite palette for color 0 to bg palette (color 0 is shared
     // between sprite and bg on NES).
-    if (!(addr & PALETTE_COL_MASK)) {
+    bool is_color_zero = !(addr & PALETTE_COL_MASK);
+    if (is_color_zero) {
       addr &= PALETTE_SPR_MASK;
     }
     return palette_[addr & PALETTE_ADDR_MASK];
@@ -191,8 +278,8 @@ void Ppu::write_PPUCTRL(uint8_t x) {
   regs_.PPUCTRL = x;
 
   uint16_t t = regs_.t;
-  t &= 0b0111001111111111;
-  t |= (x & 0b00000011) << 10;
+  t &= 0x73ff;
+  t |= (x & 3) << 10;
   regs_.t = t;
 
   // TODO: emulate "Bit 0 race condition" from
@@ -237,14 +324,14 @@ void Ppu::write_PPUSCROLL(uint8_t x) {
 
   if (!regs_.w) {
     uint16_t t = regs_.t;
-    t &= 0b111111111100000;
+    t &= 0x7fe0;
     t |= x >> 3;
     regs_.t = t;
-    regs_.x = x & 0b111;
+    regs_.x = x & 7;
     regs_.w = 1;
   } else {
     uint16_t t = regs_.t;
-    t &= 0b000110000011111;
+    t &= 0x0c1f;
     t |= (x & 0b11000000) << 2;
     t |= (x & 0b00111000) << 2;
     t |= (x & 0b00000111) << 12;
@@ -259,7 +346,7 @@ void Ppu::write_PPUADDR(uint8_t x) {
   }
 
   if (!regs_.w) {
-    regs_.t = (uint16_t)((regs_.t & 0x00ff) | ((x & 0b00111111) << 8));
+    regs_.t = (uint16_t)((regs_.t & 0x00ff) | ((x & 0x3f) << 8));
     regs_.w = 1;
   } else {
     regs_.t = (regs_.t & 0xff00) | x;
@@ -283,98 +370,169 @@ void Ppu::write_OAMDMA([[maybe_unused]] uint8_t x) {
 
 void Ppu::step() {
   assert(scanline_ <= PRE_RENDER_SCANLINE);
-  assert(scanline_cycle_ < SCANLINE_MAX_CYCLES);
+  assert(dot_ < SCANLINE_MAX_CYCLES);
 
   if (scanline_ < VISIBLE_FRAME_END) {
-    step_visible_frame();
-  } else if (scanline_ < PRE_RENDER_SCANLINE) {
-    step_post_render();
-  } else {
-    step_pre_render();
+    execute_ops(VISIBLE_FRAME_OP_TABLE[dot_]);
+  } else if (scanline_ == PRE_RENDER_SCANLINE) {
+    execute_ops(PRE_RENDER_OP_TABLE[dot_]);
+  } else if (scanline_ == 241 && dot_ == 1) {
+    op_flag_set_vblank(); // only possible post-render op
   }
 
+  next_dot();
   cycles_++;
 }
 
-void Ppu::step_pre_render() {
-  step_internal(PRE_RENDER_FRAME_CYCLES[scanline_cycle_]);
-
-  if (scanline_cycle_ == 1) {
-    clear_flags();
+void Ppu::next_dot() {
+  // Increment dot.
+  dot_++;
+  if (dot_ < SCANLINE_MAX_CYCLES) {
+    return;
   }
 
-  scanline_cycle_++;
-  if (scanline_cycle_ == SCANLINE_MAX_CYCLES - (int)(frames_ & 1)) {
-    scanline_       = 0;
-    scanline_cycle_ = 0;
+  // Overflow -> increment scanline.
+  dot_ = 0;
+  scanline_++;
+  if (scanline_ < PRE_RENDER_SCANLINE) {
+    return;
+  } else if (scanline_ == PRE_RENDER_SCANLINE) {
+    frames_++;
+    ready_ = frames_ >= 1;
+    return;
+  }
+
+  // Overflow -> wrap back to 0.
+  scanline_      = 0;
+  bool odd_frame = frames_ & 1;
+  if (bg_rendering() && odd_frame) {
+    dot_++;
   }
 }
 
-void Ppu::step_post_render() {
-  if (scanline_ == 241 && scanline_cycle_ == 1) {
-    set_vblank();
+void Ppu::execute_ops(uint16_t op_mask) {
+  uint16_t enabled = ALWAYS_ENABLED_OP_MASK;
+  if (bg_rendering()) {
+    enabled |= BG_RENDERING_OP_MASK;
   }
+  op_mask &= enabled;
 
-  scanline_cycle_++;
-  if (scanline_cycle_ == SCANLINE_MAX_CYCLES) {
-    scanline_++;
-    scanline_cycle_ = 0;
-    if (scanline_ == PRE_RENDER_SCANLINE) {
-      frames_++;
-      ready_ = frames_ >= 1;
+  while (op_mask) {
+    int op = std::countr_zero(op_mask);
+    switch (op) {
+    case OP_DRAW: op_draw(); break;
+    case OP_S_REG_SHIFT_BG: op_s_reg_shift_bg(); break;
+    case OP_S_REG_SHIFT_SP: op_s_reg_shift_sp(); break;
+    case OP_S_REG_RELOAD_BG: op_s_reg_reload_bg(); break;
+    case OP_FETCH_NT: op_fetch_nt(); break;
+    case OP_FETCH_AT: op_fetch_at(); break;
+    case OP_FETCH_BG_LO: op_fetch_bg_lo(); break;
+    case OP_FETCH_BG_HI: op_fetch_bg_hi(); break;
+    case OP_FLAG_SET_VBLANK: op_flag_set_vblank(); break;
+    case OP_FLAG_CLEAR: op_flag_clear(); break;
+    case OP_V_REG_INC_HORZ: op_v_reg_inc_horz(); break;
+    case OP_V_REG_INC_VERT: op_v_reg_inc_vert(); break;
+    case OP_V_REG_SET_HORZ: op_v_reg_set_horz(); break;
+    case OP_V_REG_SET_VERT: op_v_reg_set_vert(); break;
+    default: assert(false); break;
     }
+    op_mask &= op_mask - 1;
   }
 }
 
-void Ppu::step_visible_frame() {
-  step_internal(VISIBLE_FRAME_CYCLES[scanline_cycle_]);
-
-  if (scanline_cycle_ >= 16 && scanline_cycle_ < 16 + 256) {
-    draw_pixel();
-  }
-
-  scanline_cycle_++;
-  if (scanline_cycle_ == SCANLINE_MAX_CYCLES) {
-    scanline_++;
-    scanline_cycle_ = 0;
-  }
+void Ppu::op_draw() {
+  // not implemented
 }
 
-void Ppu::step_internal(CycleOps ops) {
-  switch (ops.v_op) {
-  case V_OP_INC_HORZ: inc_v_horizontal(); break;
-  case V_OP_INC_VERT: inc_v_vertical(); break;
-  case V_OP_SET_HORZ: set_v_horizontal(); break;
-  case V_OP_SET_VERT: set_v_vertical(); break;
-  default: assert(ops.v_op == V_OP_NONE); // no-op
-  }
-
-  switch (ops.fetch_op) {
-  case FETCH_OP_NT_BYTE_CYC1: fetch_NT_byte_cyc1(); break;
-  case FETCH_OP_NT_BYTE_CYC2: fetch_NT_byte_cyc2(); break;
-  case FETCH_OP_AT_BYTE_CYC1: fetch_AT_byte_cyc1(); break;
-  case FETCH_OP_AT_BYTE_CYC2: fetch_AT_byte_cyc2(); break;
-  case FETCH_OP_PT_BYTE_LO_CYC1: fetch_PT_byte_lo_cyc1(); break;
-  case FETCH_OP_PT_BYTE_LO_CYC2: fetch_PT_byte_lo_cyc2(); break;
-  case FETCH_OP_PT_BYTE_HI_CYC1: fetch_PT_byte_hi_cyc1(); break;
-  case FETCH_OP_PT_BYTE_HI_CYC2: fetch_PT_byte_hi_cyc2(); break;
-  default: assert(ops.fetch_op == FETCH_OP_NONE); // no-op
-  }
+void Ppu::op_s_reg_shift_bg() {
+  assert(bg_rendering());
+  regs_.shift_bg_lo = (regs_.shift_bg_lo >> 1) | 0x8000;
+  regs_.shift_bg_hi = (regs_.shift_bg_hi >> 1) | 0x8000;
 }
 
-void Ppu::set_vblank() { regs_.PPUSTATUS |= PPUSTATUS_VBLANK; }
-void Ppu::clear_flags() { regs_.PPUSTATUS &= ~PPUSTATUS_ALL; }
+void Ppu::op_s_reg_shift_sp() {
+  // not implemented
+}
 
-void Ppu::fetch_NT_byte_cyc1() {}
-void Ppu::fetch_NT_byte_cyc2() {}
-void Ppu::fetch_AT_byte_cyc1() {}
-void Ppu::fetch_AT_byte_cyc2() {}
-void Ppu::fetch_PT_byte_lo_cyc1() {}
-void Ppu::fetch_PT_byte_lo_cyc2() {}
-void Ppu::fetch_PT_byte_hi_cyc1() {}
-void Ppu::fetch_PT_byte_hi_cyc2() {}
-void Ppu::inc_v_horizontal() {}
-void Ppu::inc_v_vertical() {}
-void Ppu::set_v_horizontal() {}
-void Ppu::set_v_vertical() {}
-void Ppu::draw_pixel() {}
+void Ppu::op_s_reg_reload_bg() {
+  assert(bg_rendering());
+  regs_.shift_bg_lo =
+      (uint16_t)((regs_.shift_bg_lo & 0xff) | (regs_.fetch_bg_lo << 8));
+  regs_.shift_bg_hi =
+      (uint16_t)((regs_.shift_bg_hi & 0xff) | (regs_.fetch_bg_hi << 8));
+}
+
+void Ppu::op_fetch_nt() {
+  assert(bg_rendering());
+  uint16_t addr  = 0x2000 | (regs_.v & 0x0fff);
+  regs_.fetch_nt = peek(addr);
+}
+
+void Ppu::op_fetch_at() {
+  //
+}
+
+void Ppu::op_fetch_bg_lo() {
+  assert(bg_rendering());
+  uint16_t addr = bg_pattern_table_addr();
+  addr += regs_.fetch_nt << 4;
+  addr += fine_y_scroll();
+  regs_.fetch_bg_lo = peek(addr);
+}
+
+void Ppu::op_fetch_bg_hi() {
+  assert(bg_rendering());
+  uint16_t addr = bg_pattern_table_addr();
+  addr += regs_.fetch_nt << 4;
+  addr += fine_y_scroll();
+  addr += 8;
+  regs_.fetch_bg_lo = peek(addr);
+}
+
+void Ppu::op_flag_set_vblank() {
+  regs_.PPUSTATUS |= PPUSTATUS_VBLANK;
+  // TODO: generate interrupt on VBLANK
+}
+
+void Ppu::op_flag_clear() { regs_.PPUSTATUS &= ~PPUSTATUS_ALL; }
+
+void Ppu::op_v_reg_inc_horz() {
+  assert(bg_rendering());
+
+  // Increment coarse x.
+  int x = coarse_x_scroll();
+  if (x < 31) {
+    regs_.v++;
+    return;
+  }
+
+  // Coarse x overflow.
+  set_coarse_x_scroll(0);
+  next_horz_name_table();
+}
+
+void Ppu::op_v_reg_inc_vert() {
+  assert(bg_rendering());
+
+  // Increment fine y.
+  int y0 = fine_y_scroll();
+  if (y0 < 7) {
+    set_fine_y_scroll(y0 + 1);
+    return;
+  }
+
+  // Fine y overflow -> increment coarse y.
+  set_fine_y_scroll(0);
+  int y1 = coarse_y_scroll();
+  if (y1 < 29) {
+    set_coarse_y_scroll(y1 + 1);
+    return;
+  }
+
+  // Coarse y overflow.
+  set_coarse_y_scroll(0);
+  next_vert_name_table();
+}
+
+void Ppu::op_v_reg_set_horz() {}
+void Ppu::op_v_reg_set_vert() {}

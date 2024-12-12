@@ -8,41 +8,43 @@ class Cart;
 class Ppu {
 public:
   struct Registers {
-    uint8_t  PPUCTRL;
-    uint8_t  PPUMASK;
-    uint8_t  PPUSTATUS;
-    uint8_t  OAMADDR;
-    uint8_t  PPUDATA;
-    uint8_t  OAMDMA;
+    uint8_t PPUCTRL;
+    uint8_t PPUMASK;
+    uint8_t PPUSTATUS;
+    uint8_t OAMADDR;
+    uint8_t PPUDATA;
+    uint8_t OAMDMA;
+
     uint16_t v;
     uint16_t t;
     uint8_t  x;
     uint8_t  w;
+
+    uint16_t shift_bg_lo;
+    uint16_t shift_bg_hi;
+
+    uint8_t fetch_nt;
+    uint8_t fetch_bg_lo;
+    uint8_t fetch_bg_hi;
   };
 
-  enum FetchOp : uint8_t {
-    FETCH_OP_NONE = 0,
-    FETCH_OP_NT_BYTE_CYC1,
-    FETCH_OP_NT_BYTE_CYC2,
-    FETCH_OP_AT_BYTE_CYC1,
-    FETCH_OP_AT_BYTE_CYC2,
-    FETCH_OP_PT_BYTE_LO_CYC1,
-    FETCH_OP_PT_BYTE_LO_CYC2,
-    FETCH_OP_PT_BYTE_HI_CYC1,
-    FETCH_OP_PT_BYTE_HI_CYC2,
-  };
-
-  enum VOp : uint8_t {
-    V_OP_NONE = 0,
-    V_OP_INC_HORZ,
-    V_OP_INC_VERT,
-    V_OP_SET_HORZ,
-    V_OP_SET_VERT,
-  };
-
-  struct CycleOps {
-    FetchOp fetch_op : 4 = FETCH_OP_NONE;
-    VOp     v_op : 4     = V_OP_NONE;
+  // N.B., ops are ordered in precedence (the first listed op is executed
+  // first, and the last listed op is executed last).
+  enum Ops {
+    OP_DRAW,
+    OP_S_REG_SHIFT_BG,
+    OP_S_REG_SHIFT_SP,
+    OP_S_REG_RELOAD_BG,
+    OP_FETCH_NT,
+    OP_FETCH_AT,
+    OP_FETCH_BG_LO,
+    OP_FETCH_BG_HI,
+    OP_FLAG_SET_VBLANK,
+    OP_FLAG_CLEAR,
+    OP_V_REG_INC_HORZ,
+    OP_V_REG_INC_VERT,
+    OP_V_REG_SET_HORZ,
+    OP_V_REG_SET_VERT,
   };
 
   Ppu();
@@ -53,11 +55,22 @@ public:
 
   Registers &registers() { return regs_; }
   int        scanline() const { return scanline_; }
-  int        scanline_tick() const { return scanline_cycle_; }
+  int        scanline_tick() const { return dot_; }
   int64_t    cycles() const { return cycles_; }
   int64_t    frames() const { return frames_; }
   bool       ready() const { return ready_; }
-  uint16_t   bg_pattern_table_addr() const;
+
+  uint16_t bg_pattern_table_addr() const;
+  bool     bg_rendering() const;
+
+  int  fine_x_scroll() const;
+  int  fine_y_scroll() const;
+  int  coarse_x_scroll() const;
+  int  coarse_y_scroll() const;
+  void set_fine_x_scroll(int x);
+  void set_fine_y_scroll(int y);
+  void set_coarse_x_scroll(int x);
+  void set_coarse_y_scroll(int y);
 
   uint8_t read_PPUCTRL();
   uint8_t read_PPUMASK();
@@ -87,8 +100,6 @@ public:
   void step();
 
 private:
-  uint8_t read_open_bus();
-
   // PPUCTRL layout
   // ==============
   //
@@ -159,28 +170,28 @@ private:
   static constexpr int VISIBLE_FRAME_END   = 240;
   static constexpr int PRE_RENDER_SCANLINE = 261;
 
-  static_assert(sizeof(Ppu::CycleOps) == 1);
+  void next_dot();
+  void execute_ops(uint16_t op_mask);
 
-  void step_pre_render();
-  void step_visible_frame();
-  void step_post_render();
-  void step_internal(CycleOps ops);
+  uint8_t read_open_bus();
 
-  void set_vblank();
-  void clear_flags();
-  void fetch_NT_byte_cyc1();
-  void fetch_NT_byte_cyc2();
-  void fetch_AT_byte_cyc1();
-  void fetch_AT_byte_cyc2();
-  void fetch_PT_byte_lo_cyc1();
-  void fetch_PT_byte_lo_cyc2();
-  void fetch_PT_byte_hi_cyc1();
-  void fetch_PT_byte_hi_cyc2();
-  void inc_v_horizontal();
-  void inc_v_vertical();
-  void set_v_horizontal();
-  void set_v_vertical();
-  void draw_pixel();
+  void next_horz_name_table();
+  void next_vert_name_table();
+
+  void op_fetch_nt();
+  void op_fetch_at();
+  void op_fetch_bg_lo();
+  void op_fetch_bg_hi();
+  void op_flag_set_vblank();
+  void op_flag_clear();
+  void op_v_reg_inc_horz();
+  void op_v_reg_inc_vert();
+  void op_v_reg_set_horz();
+  void op_v_reg_set_vert();
+  void op_s_reg_shift_bg();
+  void op_s_reg_shift_sp();
+  void op_s_reg_reload_bg();
+  void op_draw();
 
   Registers regs_;
   uint8_t   vram_[2 * 1024];
@@ -189,7 +200,8 @@ private:
   Cart     *cart_;
   Cpu      *cpu_;
   int       scanline_;
-  int       scanline_cycle_;
+  int       dot_;
+  uint8_t   frame_bufs_[2][256][240];
   int64_t   cycles_; // since reset
   int64_t   frames_; // since reset
 
