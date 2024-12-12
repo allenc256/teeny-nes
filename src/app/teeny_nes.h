@@ -1,5 +1,6 @@
 #pragma once
 
+#include "src/app/game_window.h"
 #include "src/app/imgui.h"
 #include "src/app/ppu_window.h"
 #include "src/app/sdl.h"
@@ -22,6 +23,7 @@ private:
 
   Nes nes_;
 
-  bool      show_ppu_window_;
-  PpuWindow ppu_window_;
+  GameWindow game_window_;
+  bool       show_ppu_window_;
+  PpuWindow  ppu_window_;
 };

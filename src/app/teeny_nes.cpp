@@ -10,11 +10,12 @@ TeenyNes::TeenyNes()
     : window_("teeny-nes", 1024, 768),
       renderer_(window_.get()),
       imgui_(window_.get(), renderer_.get()),
+      game_window_(nes_, renderer_.get()),
       show_ppu_window_(true),
       ppu_window_(nes_, renderer_.get()) {
   nes_.load_cart("hello_world.nes");
   nes_.power_up();
-  while (nes_.ppu().frames() < 2) {
+  while (nes_.ppu().frames() < 5) {
     nes_.step();
   }
 }
@@ -73,6 +74,9 @@ void TeenyNes::render_imgui() {
 
   render_imgui_menu();
 
+  if (nes_.is_powered_up()) {
+    game_window_.render();
+  }
   if (show_ppu_window_) {
     ppu_window_.render();
   }

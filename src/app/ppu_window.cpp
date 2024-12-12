@@ -138,6 +138,20 @@ void PpuWindow::render_stats() {
   if (!ImGui::CollapsingHeader("Stats")) {
     return;
   }
+
+  if (ImGui::BeginTable("Stats", 2, ImGuiTableFlags_SizingFixedFit)) {
+    ImGui::TableNextColumn();
+    ImGui::Text("Cycles:");
+    ImGui::TableNextColumn();
+    ImGui::Text("%" PRIi64, nes_.ppu().cycles());
+
+    ImGui::TableNextColumn();
+    ImGui::Text("Frames:");
+    ImGui::TableNextColumn();
+    ImGui::Text("%" PRIi64, nes_.ppu().frames());
+
+    ImGui::EndTable();
+  }
 }
 
 static void extract_pattern(

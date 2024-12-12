@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 
 class Cpu;
 class Cart;
@@ -53,15 +54,17 @@ public:
   void set_cart(Cart *cart) { cart_ = cart; }
   void set_ready(bool ready) { ready_ = ready; }
 
-  Registers &registers() { return regs_; }
-  int        scanline() const { return scanline_; }
-  int        scanline_tick() const { return dot_; }
-  int64_t    cycles() const { return cycles_; }
-  int64_t    frames() const { return frames_; }
-  bool       ready() const { return ready_; }
+  Registers     &registers() { return regs_; }
+  int            scanline() const { return scanline_; }
+  int            dot() const { return dot_; }
+  int64_t        cycles() const { return cycles_; }
+  int64_t        frames() const { return frames_; }
+  bool           ready() const { return ready_; }
+  const uint8_t *frame() const { return front_frame_.get(); }
 
   uint16_t bg_pattern_table_addr() const;
   bool     bg_rendering() const;
+  int      emphasis() const;
 
   uint8_t read_PPUCTRL();
   uint8_t read_PPUMASK();
@@ -138,9 +141,7 @@ private:
   static constexpr uint8_t PPUMASK_BG_RENDERING = 0b00001000;
   static constexpr uint8_t PPUMASK_SP_RENDERING = 0b00010000;
   static constexpr uint8_t PPUMASK_RENDERING    = 0b00011000;
-  static constexpr uint8_t PPUMASK_RED          = 0b00100000;
-  static constexpr uint8_t PPUMASK_GREEN        = 0b01000000;
-  static constexpr uint8_t PPUMASK_BLUE         = 0b10000000;
+  static constexpr uint8_t PPUMASK_EMPHASIS     = 0b11100000;
 
   // PPUSTATUS layout
   // ================
@@ -193,6 +194,8 @@ private:
   void op_s_reg_reload_bg();
   void op_draw();
 
+  using Frame = std::unique_ptr<uint8_t[]>;
+
   Registers regs_;
   uint8_t   vram_[2 * 1024];
   uint8_t   palette_[32];
@@ -201,7 +204,8 @@ private:
   Cpu      *cpu_;
   int       scanline_;
   int       dot_;
-  uint8_t   frame_bufs_[2][256][240];
+  Frame     back_frame_;
+  Frame     front_frame_;
   int64_t   cycles_; // since reset
   int64_t   frames_; // since reset
 

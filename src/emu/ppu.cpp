@@ -76,7 +76,7 @@ static void init_op_table_common(uint16_t *ops) {
     add_op(ops[i], OP_V_REG_INC_HORZ);
   }
   add_op(ops[256], OP_V_REG_INC_VERT);
-  add_op(ops[257], OP_V_REG_SET_VERT);
+  add_op(ops[257], OP_V_REG_SET_HORZ);
   add_op(ops[328], OP_V_REG_INC_HORZ);
   add_op(ops[336], OP_V_REG_INC_HORZ);
 }
@@ -134,6 +134,8 @@ Ppu::Ppu()
       cpu_(nullptr),
       scanline_(0),
       dot_(0),
+      back_frame_(std::make_unique<uint8_t[]>(256 * 240)),
+      front_frame_(std::make_unique<uint8_t[]>(256 * 240)),
       cycles_(0),
       frames_(0),
       ready_(false) {}
@@ -143,6 +145,7 @@ uint16_t Ppu::bg_pattern_table_addr() const {
 }
 
 bool Ppu::bg_rendering() const { return regs_.PPUMASK & PPUMASK_BG_RENDERING; }
+int  Ppu::emphasis() const { return get_bits<PPUMASK_EMPHASIS>(regs_.PPUMASK); }
 
 void Ppu::power_up() {
   regs_.PPUCTRL     = 0;
@@ -167,7 +170,8 @@ void Ppu::power_up() {
   std::memset(oam_, 0, sizeof(oam_));
   std::memset(palette_, 0, sizeof(palette_));
   std::memset(vram_, 0, sizeof(vram_));
-  std::memset(frame_bufs_, 0, sizeof(frame_bufs_));
+  std::memset(back_frame_.get(), 0, sizeof(256 * 240));
+  std::memset(front_frame_.get(), 0, sizeof(256 * 240));
 }
 
 void Ppu::reset() {
@@ -188,7 +192,8 @@ void Ppu::reset() {
   cycles_           = 0;
   frames_           = 0;
 
-  std::memset(frame_bufs_, 0, sizeof(frame_bufs_));
+  std::memset(back_frame_.get(), 0, sizeof(256 * 240));
+  std::memset(front_frame_.get(), 0, sizeof(256 * 240));
 }
 
 static constexpr uint16_t MMAP_ADDR_MASK    = 0x3fff;
@@ -234,7 +239,6 @@ uint8_t Ppu::peek(uint16_t addr) {
     }
     return palette_[addr & PALETTE_ADDR_MASK];
   }
-  throw std::runtime_error("not implemented yet");
 }
 
 uint8_t Ppu::read_PPUCTRL() { return read_open_bus(); }
@@ -393,6 +397,7 @@ void Ppu::next_dot() {
     return;
   } else if (scanline_ == PRE_RENDER_SCANLINE) {
     frames_++;
+    back_frame_.swap(front_frame_);
     ready_ = frames_ >= 1;
     return;
   }
@@ -436,13 +441,25 @@ void Ppu::execute_ops(uint16_t op_mask) {
 }
 
 void Ppu::op_draw() {
-  // not implemented
+  if (!bg_rendering()) {
+    return;
+  }
+
+  static constexpr uint8_t palette[4] = {0x0f, 0x00, 0x10, 0x20};
+
+  uint8_t lo      = (regs_.shift_bg_lo >> (15 - regs_.x)) & 1;
+  uint8_t hi      = (regs_.shift_bg_hi >> (15 - regs_.x)) & 1;
+  int     pal_idx = lo | (hi << 1);
+  uint8_t col     = palette[pal_idx];
+  assert(dot_ >= 2 && dot_ <= 257);
+  assert(scanline_ >= 0 && scanline_ < 240);
+  back_frame_[scanline_ * 256 + dot_ - 2] = col;
 }
 
 void Ppu::op_s_reg_shift_bg() {
   assert(bg_rendering());
-  regs_.shift_bg_lo = (regs_.shift_bg_lo >> 1) | 0x8000;
-  regs_.shift_bg_hi = (regs_.shift_bg_hi >> 1) | 0x8000;
+  regs_.shift_bg_lo = (uint16_t)((regs_.shift_bg_lo << 1) | 1);
+  regs_.shift_bg_hi = (uint16_t)((regs_.shift_bg_hi << 1) | 1);
 }
 
 void Ppu::op_s_reg_shift_sp() {
@@ -451,8 +468,8 @@ void Ppu::op_s_reg_shift_sp() {
 
 void Ppu::op_s_reg_reload_bg() {
   assert(bg_rendering());
-  set_bits<0xff00>(regs_.shift_bg_lo, regs_.fetch_bg_lo);
-  set_bits<0xff00>(regs_.shift_bg_hi, regs_.fetch_bg_hi);
+  set_bits<0x00ff>(regs_.shift_bg_lo, regs_.fetch_bg_lo);
+  set_bits<0x00ff>(regs_.shift_bg_hi, regs_.fetch_bg_hi);
 }
 
 void Ppu::op_fetch_nt() {
@@ -479,7 +496,7 @@ void Ppu::op_fetch_bg_hi() {
   addr += regs_.fetch_nt << 4;
   addr += get_bits<V_FINE_Y>(regs_.v);
   addr += 8;
-  regs_.fetch_bg_lo = peek(addr);
+  regs_.fetch_bg_hi = peek(addr);
 }
 
 void Ppu::op_flag_set_vblank() {
@@ -509,11 +526,13 @@ void Ppu::op_v_reg_inc_vert() {
 }
 
 void Ppu::op_v_reg_set_horz() {
+  assert(bg_rendering());
   copy_bits<V_COARSE_X>(regs_.t, regs_.v);
   copy_bits<V_NAME_TABLE_H>(regs_.t, regs_.v);
 }
 
 void Ppu::op_v_reg_set_vert() {
+  assert(bg_rendering());
   copy_bits<V_COARSE_Y>(regs_.t, regs_.v);
   copy_bits<V_NAME_TABLE_V>(regs_.t, regs_.v);
 }
