@@ -4,36 +4,12 @@
 #include <cstring>
 #include <format>
 
+#include "src/emu/bits.h"
 #include "src/emu/cart.h"
 #include "src/emu/cpu.h"
 #include "src/emu/ppu.h"
 
 using enum Ppu::Ops;
-
-template <uint16_t mask> constexpr uint16_t get_bits(uint16_t x) {
-  constexpr int off = std::countr_zero(mask);
-  return (x & mask) >> off;
-}
-
-template <uint16_t mask> constexpr void set_bits(uint16_t &bits, int x) {
-  constexpr int off = std::countr_zero(mask);
-  bits              = (bits & ~mask) | ((x << off) & mask);
-}
-
-template <uint16_t mask> constexpr void copy_bits(uint16_t from, uint16_t &to) {
-  set_bits<mask>(to, get_bits<mask>(from));
-}
-
-template <uint16_t mask, int max> constexpr bool inc_bits(uint16_t &bits) {
-  int x = get_bits<mask>(bits);
-  if (x < max) {
-    set_bits<mask>(bits, x + 1);
-    return false;
-  } else {
-    set_bits<mask>(bits, 0);
-    return true;
-  }
-}
 
 static constexpr int SCANLINE_MAX_CYCLES = 341;
 
@@ -157,9 +133,12 @@ void Ppu::power_up() {
   regs_.t           = 0;
   regs_.x           = 0;
   regs_.w           = 0;
-  regs_.shift_bg_hi = 0;
   regs_.shift_bg_lo = 0;
+  regs_.shift_bg_hi = 0;
+  regs_.shift_at_lo = 0;
+  regs_.shift_at_hi = 0;
   regs_.fetch_nt    = 0;
+  regs_.fetch_at    = 0;
   regs_.fetch_bg_lo = 0;
   regs_.fetch_bg_hi = 0;
   scanline_         = PRE_RENDER_SCANLINE;
@@ -182,9 +161,12 @@ void Ppu::reset() {
   regs_.t           = 0;
   regs_.x           = 0;
   regs_.w           = 0;
-  regs_.shift_bg_hi = 0;
   regs_.shift_bg_lo = 0;
+  regs_.shift_bg_hi = 0;
+  regs_.shift_at_lo = 0;
+  regs_.shift_at_hi = 0;
   regs_.fetch_nt    = 0;
+  regs_.fetch_at    = 0;
   regs_.fetch_bg_lo = 0;
   regs_.fetch_bg_hi = 0;
   scanline_         = PRE_RENDER_SCANLINE;
@@ -445,21 +427,28 @@ void Ppu::op_draw() {
     return;
   }
 
-  static constexpr uint8_t palette[4] = {0x0f, 0x00, 0x10, 0x20};
+  // TODO: handle PPUMASK background clipping
 
-  uint8_t lo      = (regs_.shift_bg_lo >> (15 - regs_.x)) & 1;
-  uint8_t hi      = (regs_.shift_bg_hi >> (15 - regs_.x)) & 1;
-  int     pal_idx = lo | (hi << 1);
-  uint8_t col     = palette[pal_idx];
+  uint8_t bg_lo     = (regs_.shift_bg_lo >> (15 - regs_.x)) & 1;
+  uint8_t bg_hi     = (regs_.shift_bg_hi >> (15 - regs_.x)) & 1;
+  int     color_idx = bg_lo | (bg_hi << 1);
+
+  uint8_t at_lo       = (regs_.shift_at_lo >> (15 - regs_.x)) & 1;
+  uint8_t at_hi       = (regs_.shift_at_hi >> (15 - regs_.x)) & 1;
+  int     palette_idx = at_lo | (at_hi << 1);
+
+  uint8_t color = palette_[palette_idx * 4 + color_idx];
   assert(dot_ >= 2 && dot_ <= 257);
   assert(scanline_ >= 0 && scanline_ < 240);
-  back_frame_[scanline_ * 256 + dot_ - 2] = col;
+  back_frame_[scanline_ * 256 + dot_ - 2] = color;
 }
 
 void Ppu::op_s_reg_shift_bg() {
   assert(bg_rendering());
-  regs_.shift_bg_lo = (uint16_t)((regs_.shift_bg_lo << 1) | 1);
-  regs_.shift_bg_hi = (uint16_t)((regs_.shift_bg_hi << 1) | 1);
+  regs_.shift_bg_lo <<= 1;
+  regs_.shift_bg_hi <<= 1;
+  regs_.shift_at_lo <<= 1;
+  regs_.shift_at_hi <<= 1;
 }
 
 void Ppu::op_s_reg_shift_sp() {
@@ -468,18 +457,40 @@ void Ppu::op_s_reg_shift_sp() {
 
 void Ppu::op_s_reg_reload_bg() {
   assert(bg_rendering());
+
   set_bits<0x00ff>(regs_.shift_bg_lo, regs_.fetch_bg_lo);
   set_bits<0x00ff>(regs_.shift_bg_hi, regs_.fetch_bg_hi);
+
+  // See https://www.nesdev.org/wiki/PPU_attribute_tables
+  int     y      = get_bits<V_COARSE_Y>(regs_.v) & 1;
+  int     x      = get_bits<V_COARSE_X>(regs_.v) & 1;
+  int     lo_idx = y * 4 + x * 2;
+  int     hi_idx = lo_idx + 1;
+  uint8_t lo     = (uint8_t)((regs_.fetch_at >> lo_idx) & 1);
+  uint8_t hi     = (uint8_t)((regs_.fetch_at >> hi_idx) & 1);
+  uint8_t lo_x8  = ~(lo - 1);
+  uint8_t hi_x8  = ~(hi - 1);
+  // N.B., nesdev.org says that the lo/hi bits populate one bit latches which
+  // then are shifted repeatedly. For simplicity, we just make the AT shift
+  // registers 16 bits (instead of 8 bits) wide and set the incoming 8 bits to
+  // be repeated copies of the lo/hi bits.
+  set_bits<0x00ff>(regs_.shift_at_lo, lo_x8);
+  set_bits<0x00ff>(regs_.shift_at_hi, hi_x8);
 }
 
 void Ppu::op_fetch_nt() {
   assert(bg_rendering());
+  // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
   uint16_t addr  = 0x2000 | (regs_.v & 0x0fff);
   regs_.fetch_nt = peek(addr);
 }
 
 void Ppu::op_fetch_at() {
-  //
+  assert(bg_rendering());
+  // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
+  uint16_t addr = 0x23c0 | (regs_.v & 0x0c00) | ((regs_.v >> 4) & 0x38) |
+                  ((regs_.v >> 2) & 0x07);
+  regs_.fetch_at = peek(addr);
 }
 
 void Ppu::op_fetch_bg_lo() {
@@ -492,16 +503,17 @@ void Ppu::op_fetch_bg_lo() {
 
 void Ppu::op_fetch_bg_hi() {
   assert(bg_rendering());
-  uint16_t addr = bg_pattern_table_addr();
+  uint16_t addr = bg_pattern_table_addr() + 8;
   addr += regs_.fetch_nt << 4;
   addr += get_bits<V_FINE_Y>(regs_.v);
-  addr += 8;
   regs_.fetch_bg_hi = peek(addr);
 }
 
 void Ppu::op_flag_set_vblank() {
   regs_.PPUSTATUS |= PPUSTATUS_VBLANK;
-  // TODO: generate interrupt on VBLANK
+  if (regs_.PPUCTRL & PPUCTRL_NMI_ENABLE) {
+    cpu_->signal_NMI();
+  }
 }
 
 void Ppu::op_flag_clear() { regs_.PPUSTATUS &= ~PPUSTATUS_ALL; }
@@ -527,12 +539,10 @@ void Ppu::op_v_reg_inc_vert() {
 
 void Ppu::op_v_reg_set_horz() {
   assert(bg_rendering());
-  copy_bits<V_COARSE_X>(regs_.t, regs_.v);
-  copy_bits<V_NAME_TABLE_H>(regs_.t, regs_.v);
+  copy_bits<V_COARSE_X | V_NAME_TABLE_H>(regs_.t, regs_.v);
 }
 
 void Ppu::op_v_reg_set_vert() {
   assert(bg_rendering());
-  copy_bits<V_COARSE_Y>(regs_.t, regs_.v);
-  copy_bits<V_NAME_TABLE_V>(regs_.t, regs_.v);
+  copy_bits<V_COARSE_Y | V_FINE_Y | V_NAME_TABLE_V>(regs_.t, regs_.v);
 }

@@ -13,7 +13,7 @@ TeenyNes::TeenyNes()
       game_window_(nes_, renderer_.get()),
       show_ppu_window_(true),
       ppu_window_(nes_, renderer_.get()) {
-  nes_.load_cart("hello_world.nes");
+  nes_.load_cart("donkey_kong.nes");
   nes_.power_up();
   while (nes_.ppu().frames() < 5) {
     nes_.step();

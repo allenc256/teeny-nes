@@ -12,6 +12,7 @@ public:
 private:
   void render_pattern_table();
   void render_name_table();
+  void render_attr_table();
   void render_palette();
   void render_stats();
 

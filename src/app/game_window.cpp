@@ -17,7 +17,7 @@ void GameWindow::render() {
 
   if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     prepare_frame();
-    ImGui::Image((ImTextureID)frame_.get(), ImVec2(256 * 2, 240 * 2));
+    ImGui::Image((ImTextureID)frame_.get(), ImVec2(256 * 3, 240 * 2.25));
   }
   ImGui::End();
 }

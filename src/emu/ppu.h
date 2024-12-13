@@ -23,8 +23,11 @@ public:
 
     uint16_t shift_bg_lo;
     uint16_t shift_bg_hi;
+    uint16_t shift_at_lo;
+    uint16_t shift_at_hi;
 
     uint8_t fetch_nt;
+    uint8_t fetch_at;
     uint8_t fetch_bg_lo;
     uint8_t fetch_bg_hi;
   };

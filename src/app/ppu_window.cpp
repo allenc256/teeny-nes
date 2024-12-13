@@ -19,6 +19,7 @@ void PpuWindow::render() {
   if (ImGui::Begin("PPU", nullptr, ImGuiWindowFlags_HorizontalScrollbar)) {
     render_pattern_table();
     render_name_table();
+    render_attr_table();
     render_palette();
     render_stats();
   }
@@ -112,21 +113,25 @@ void PpuWindow::render_palette() {
     return;
   }
 
-  uint16_t base_addr = 0x3000;
+  uint16_t base_addr = 0x3f00;
   if (ImGui::BeginTable("Palette", 16)) {
     for (int row = 0; row < 2; row++) {
       for (int col = 0; col < 16; col++) {
         ImGui::TableNextColumn();
-        ImGui::Text("%02x", col);
-        uint8_t mem       = nes_.ppu().peek(base_addr + (uint16_t)col);
-        Pixel   pal_col   = PALETTE[0][mem & 63];
-        ImU32   imgui_col = ImGui::GetColorU32(ImVec4(
+        uint8_t mem     = nes_.ppu().peek(base_addr + (uint16_t)col);
+        Pixel   pal_col = PALETTE[0][mem & 63];
+        ImVec4  bg_col  = ImVec4(
             pal_col.r() / 255.0f,
             pal_col.g() / 255.0f,
             pal_col.b() / 255.0f,
             1.0
-        ));
-        ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, imgui_col);
+        );
+        ImVec4 fg_col =
+            ImVec4(1.0f - bg_col.x, 1.0f - bg_col.y, 1.0f - bg_col.z, 1.0f);
+        ImGui::TableSetBgColor(
+            ImGuiTableBgTarget_CellBg, ImGui::GetColorU32(bg_col)
+        );
+        ImGui::TextColored(fg_col, "%02x", mem);
       }
       base_addr += 0x10;
     }
@@ -256,4 +261,39 @@ void PpuWindow::prepare_nt_tex() {
   extract_name_table(nes_.ppu(), 0x2800, pixels, pitch, 0, 240);
   extract_name_table(nes_.ppu(), 0x2c00, pixels, pitch, 256, 240);
   SDL_UnlockTexture(nt_tex_.get());
+}
+
+static void
+extract_attr_table(Ppu &ppu, uint16_t base_addr, int (*palettes)[16]) {
+  for (int row = 0; row < 8; row++) {
+    for (int col = 0; col < 8; col++) {
+      uint16_t addr          = (uint16_t)(base_addr + row * 8 + col);
+      uint8_t  mem           = ppu.peek(addr);
+      int      top_left      = mem & 0b00000011;
+      int      top_right     = (mem & 0b00001100) >> 2;
+      int      bot_left      = (mem & 0b00110000) >> 4;
+      int      bot_right     = (mem & 0b11000000) >> 6;
+      int      x             = col * 2;
+      int      y             = row * 2;
+      palettes[x][y]         = top_left;
+      palettes[x + 1][y]     = top_right;
+      palettes[x][y + 1]     = bot_left;
+      palettes[x + 1][y + 1] = bot_right;
+    }
+  }
+}
+
+void PpuWindow::render_attr_table() {
+  if (!ImGui::CollapsingHeader("Attribute Table")) {
+    return;
+  }
+  int palettes[16][16];
+  extract_attr_table(nes_.ppu(), 0x23c0, palettes);
+  for (int row = 0; row < 15; row++) {
+    char text[17] = {0};
+    for (int i = 0; i < 16; i++) {
+      text[i] = (char)(palettes[i][row] + '0');
+    }
+    ImGui::Text("%s", text);
+  }
 }

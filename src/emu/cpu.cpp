@@ -386,11 +386,12 @@ uint8_t Cpu::peek(uint16_t addr) {
   } else if (addr >= Cart::CPU_ADDR_START) {
     return cart_->peek_cpu(addr);
   } else if (addr >= APU_CHAN_START && addr < APU_CHAN_END) {
-    return 0xff; // TODO: implement APU
+    return 0; // TODO: implement APU
   } else {
     switch (addr) {
-    case APU_STATUS:
-    case APU_FRAME_COUNTER: return 0xff; // TODO: implement APU
+    case IO_JOY1:
+    case IO_JOY2:
+    case APU_STATUS: return 0; // TODO: implement APU & I/O
     case PPU_PPUCTRL: return ppu_->read_PPUCTRL();
     case PPU_PPUMASK: return ppu_->read_PPUMASK();
     case PPU_PPUSTATUS: return ppu_->read_PPUSTATUS();
@@ -425,8 +426,9 @@ void Cpu::poke(uint16_t addr, uint8_t x) {
     // TODO: implement APU
   } else {
     switch (addr) {
-    case APU_STATUS:
-    case APU_FRAME_COUNTER: break; // TODO: implement APU
+    case IO_JOY1:
+    case IO_JOY2:
+    case APU_STATUS: break; // TODO: implement APU & I/O
     case PPU_PPUCTRL: ppu_->write_PPUCTRL(x); break;
     case PPU_PPUMASK: ppu_->write_PPUMASK(x); break;
     case PPU_PPUSTATUS: ppu_->write_PPUSTATUS(x); break;
