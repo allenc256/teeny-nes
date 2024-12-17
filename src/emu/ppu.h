@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <memory>
 
+#include "src/emu/coroutine.h"
+
 class Cpu;
 class Cart;
 
@@ -25,30 +27,6 @@ public:
     uint16_t shift_bg_hi;
     uint16_t shift_at_lo;
     uint16_t shift_at_hi;
-
-    uint8_t fetch_nt;
-    uint8_t fetch_at;
-    uint8_t fetch_bg_lo;
-    uint8_t fetch_bg_hi;
-  };
-
-  // N.B., ops are ordered in precedence (the first listed op is executed
-  // first, and the last listed op is executed last).
-  enum Ops {
-    OP_DRAW,
-    OP_S_REG_SHIFT_BG,
-    OP_S_REG_SHIFT_SP,
-    OP_S_REG_RELOAD_BG,
-    OP_FETCH_NT,
-    OP_FETCH_AT,
-    OP_FETCH_BG_LO,
-    OP_FETCH_BG_HI,
-    OP_FLAG_SET_VBLANK,
-    OP_FLAG_CLEAR,
-    OP_V_REG_INC_HORZ,
-    OP_V_REG_INC_VERT,
-    OP_V_REG_SET_HORZ,
-    OP_V_REG_SET_VERT,
   };
 
   Ppu();
@@ -74,20 +52,20 @@ public:
   uint8_t read_PPUSTATUS();
   uint8_t read_OAMADDR();
   uint8_t read_OAMDATA();
+  uint8_t read_OAMDMA();
   uint8_t read_PPUSCROLL();
   uint8_t read_PPUADDR();
   uint8_t read_PPUDATA();
-  uint8_t read_OAMDMA();
 
   void write_PPUCTRL(uint8_t x);
   void write_PPUMASK(uint8_t x);
   void write_PPUSTATUS(uint8_t x);
   void write_OAMADDR(uint8_t x);
   void write_OAMDATA(uint8_t x);
+  void write_OAMDMA(uint8_t x);
   void write_PPUSCROLL(uint8_t x);
   void write_PPUADDR(uint8_t x);
   void write_PPUDATA(uint8_t x);
-  void write_OAMDMA(uint8_t x);
 
   void    poke(uint16_t addr, uint8_t x);
   uint8_t peek(uint16_t addr);
@@ -117,9 +95,9 @@ private:
   // +--------- Vblank NMI enable (0: off, 1: on)
   static constexpr uint8_t PPUCTRL_NN_ADDR    = 0b00000011;
   static constexpr uint8_t PPUCTRL_VRAM_INC   = 0b00000100;
-  static constexpr uint8_t PPUCTRL_SP_ADDR    = 0b00001000;
+  static constexpr uint8_t PPUCTRL_SPR_ADDR   = 0b00001000;
   static constexpr uint8_t PPUCTRL_BG_ADDR    = 0b00010000;
-  static constexpr uint8_t PPUCTRL_SP_SIZE    = 0b00100000;
+  static constexpr uint8_t PPUCTRL_SPR_SIZE   = 0b00100000;
   static constexpr uint8_t PPUCTRL_MSTR_SLAVE = 0b01000000;
   static constexpr uint8_t PPUCTRL_NMI_ENABLE = 0b10000000;
 
@@ -138,13 +116,13 @@ private:
   // ||+------- Emphasize red (green on PAL/Dendy)
   // |+-------- Emphasize green (red on PAL/Dendy)
   // +--------- Emphasize blue
-  static constexpr uint8_t PPUMASK_GRAY         = 0b00000001;
-  static constexpr uint8_t PPUMASK_BG_LEFT      = 0b00000010;
-  static constexpr uint8_t PPUMASK_SP_LEFT      = 0b00000100;
-  static constexpr uint8_t PPUMASK_BG_RENDERING = 0b00001000;
-  static constexpr uint8_t PPUMASK_SP_RENDERING = 0b00010000;
-  static constexpr uint8_t PPUMASK_RENDERING    = 0b00011000;
-  static constexpr uint8_t PPUMASK_EMPHASIS     = 0b11100000;
+  static constexpr uint8_t PPUMASK_GRAY          = 0b00000001;
+  static constexpr uint8_t PPUMASK_BG_LEFT       = 0b00000010;
+  static constexpr uint8_t PPUMASK_SPR_LEFT      = 0b00000100;
+  static constexpr uint8_t PPUMASK_BG_RENDERING  = 0b00001000;
+  static constexpr uint8_t PPUMASK_SPR_RENDERING = 0b00010000;
+  static constexpr uint8_t PPUMASK_RENDERING     = 0b00011000;
+  static constexpr uint8_t PPUMASK_EMPHASIS      = 0b11100000;
 
   // PPUSTATUS layout
   // ================
@@ -157,10 +135,10 @@ private:
   // ||+------- Sprite overflow flag
   // |+-------- Sprite 0 hit flag
   // +--------- Vblank flag, cleared on read. Unreliable; see below.
-  static constexpr uint8_t PPUSTATUS_SP_OVF  = 0b00100000;
-  static constexpr uint8_t PPUSTATUS_SP_HIT0 = 0b01000000;
-  static constexpr uint8_t PPUSTATUS_VBLANK  = 0b10000000;
-  static constexpr uint8_t PPUSTATUS_ALL     = 0b11100000;
+  static constexpr uint8_t PPUSTATUS_SPR_OVF  = 0b00100000;
+  static constexpr uint8_t PPUSTATUS_SPR_HIT0 = 0b01000000;
+  static constexpr uint8_t PPUSTATUS_VBLANK   = 0b10000000;
+  static constexpr uint8_t PPUSTATUS_ALL      = 0b11100000;
 
   static constexpr uint16_t V_COARSE_X     = 0b00000000'00011111;
   static constexpr uint16_t V_COARSE_Y     = 0b00000011'11100000;
@@ -178,26 +156,27 @@ private:
   static constexpr int PRE_RENDER_SCANLINE = 261;
 
   void next_dot();
-  void execute_ops(uint16_t op_mask);
 
   uint8_t read_open_bus();
 
-  void op_fetch_nt();
-  void op_fetch_at();
-  void op_fetch_bg_lo();
-  void op_fetch_bg_hi();
-  void op_flag_set_vblank();
-  void op_flag_clear();
-  void op_v_reg_inc_horz();
-  void op_v_reg_inc_vert();
-  void op_v_reg_set_horz();
-  void op_v_reg_set_vert();
-  void op_s_reg_shift_bg();
-  void op_s_reg_shift_sp();
-  void op_s_reg_reload_bg();
-  void op_draw();
+  Coroutine bg_loop();
+
+  void    draw_loop_step();
+  uint8_t fetch_nt();
+  uint8_t fetch_at();
+  uint8_t fetch_bg_lo(uint8_t nt);
+  uint8_t fetch_bg_hi(uint8_t nt);
+  void    shift_bg_regs();
+  void    reload_bg_regs(uint8_t at, uint8_t bg_lo, uint8_t bg_hi);
+  void    inc_v_horz();
+  void    inc_v_vert();
+  void    set_v_horz();
+  void    set_v_vert();
+  void    set_vblank();
 
   using Frame = std::unique_ptr<uint8_t[]>;
+
+  Coroutine bg_loop_;
 
   Registers regs_;
   uint8_t   vram_[2 * 1024];

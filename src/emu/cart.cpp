@@ -122,7 +122,9 @@ public:
   PokePpu poke_ppu(uint16_t addr, [[maybe_unused]] uint8_t x) override {
     assert(addr < UNUSED_END);
     if (addr < PATTERN_TABLE_END) {
-      throw std::runtime_error("cannot write to CHR ROM");
+      throw std::runtime_error(
+          std::format("cannot write to CHR ROM at ${:04x}", addr)
+      );
     } else if (addr < NAME_TABLE_END) {
       return PokePpu::make_address(map_name_table_addr(addr));
     } else {

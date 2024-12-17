@@ -156,11 +156,11 @@ public:
   uint8_t  pop();
   uint16_t pop16();
 
-  void signal_NMI() { nmi_ = true; }
+  void signal_NMI() { nmi_pending_ = true; }
 
   void power_up();
   void reset();
-  int  step();
+  void step();
 
   std::string disassemble();
 
@@ -236,6 +236,7 @@ private:
   void step_TYA(const OpCode &op);
 
   void step_NMI();
+  void step_OAM_DMA();
 
   void step_load_mem(const OpCode &op, uint8_t &reg);
   void step_load_stack(uint8_t &reg);
@@ -284,6 +285,7 @@ private:
   int64_t   cycles_;
   bool      oops_;
   bool      jump_;
-  bool      nmi_;
+  bool      nmi_pending_;
+  bool      oam_dma_pending_;
   uint8_t  *test_ram_; // single-step tests
 };

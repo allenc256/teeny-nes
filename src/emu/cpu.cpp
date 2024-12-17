@@ -359,14 +359,14 @@ Cpu::Cpu()
       test_ram_(nullptr) {}
 
 void Cpu::power_up() {
-  regs_.A  = 0;
-  regs_.X  = 0;
-  regs_.Y  = 0;
-  regs_.PC = peek16(RESET_VECTOR);
-  regs_.S  = 0xfd;
-  regs_.P  = I_FLAG | DUMMY_FLAG;
-  nmi_     = false;
-  cycles_  = RESET_CYCLES;
+  regs_.A      = 0;
+  regs_.X      = 0;
+  regs_.Y      = 0;
+  regs_.PC     = peek16(RESET_VECTOR);
+  regs_.S      = 0xfd;
+  regs_.P      = I_FLAG | DUMMY_FLAG;
+  nmi_pending_ = false;
+  cycles_      = RESET_CYCLES;
   std::memset(ram_, 0, sizeof(ram_));
 }
 
@@ -374,8 +374,8 @@ void Cpu::reset() {
   regs_.PC = peek16(RESET_VECTOR);
   regs_.S -= 3;
   regs_.P |= I_FLAG;
-  nmi_    = false;
-  cycles_ = RESET_CYCLES;
+  nmi_pending_ = false;
+  cycles_      = RESET_CYCLES;
 }
 
 uint8_t Cpu::peek(uint16_t addr) {
@@ -437,7 +437,11 @@ void Cpu::poke(uint16_t addr, uint8_t x) {
     case PPU_PPUSCROLL: ppu_->write_PPUSCROLL(x); break;
     case PPU_PPUADDR: ppu_->write_PPUADDR(x); break;
     case PPU_PPUDATA: ppu_->write_PPUDATA(x); break;
-    case PPU_OAMDMA: ppu_->write_OAMDMA(x); break;
+    case PPU_OAMDMA: {
+      ppu_->write_OAMDMA(x);
+      oam_dma_pending_ = true;
+      break;
+    }
     default:
       throw std::runtime_error(
           std::format("unsupported address: poke(${:04X}, {:02X})", addr, x)
@@ -469,17 +473,26 @@ uint16_t Cpu::pop16() {
   return (uint16_t)(lo + (hi << 8));
 }
 
-int Cpu::step() {
-  if (nmi_) {
+void Cpu::step() {
+  if (oam_dma_pending_) {
+    step_OAM_DMA();
+    // nesdev says OAM DMA takes 513 cycles (+1 on odd cpu cycles).
+    cycles_ += 513 + (cycles_ & 1);
+    oam_dma_pending_ = false;
+    return;
+  }
+
+  if (nmi_pending_) {
     step_NMI();
-    return NMI_CYCLES;
+    cycles_ += NMI_CYCLES;
+    nmi_pending_ = false;
+    return;
   }
 
   const OpCode &op = OP_CODES[peek(regs_.PC)];
 
-  int64_t start = cycles_;
-  jump_         = false;
-  oops_         = false;
+  jump_ = false;
+  oops_ = false;
 
   switch (op.ins) {
   case ADC: step_ADC(op); break;
@@ -556,9 +569,6 @@ int Cpu::step() {
   if (!jump_) {
     regs_.PC += op.bytes;
   }
-
-  int64_t end = cycles_;
-  return (int)(end - start);
 }
 
 static bool page_crossed(uint16_t addr1, uint16_t addr2) {
@@ -922,7 +932,13 @@ void Cpu::step_NMI() {
   push16(regs_.PC);
   push(regs_.P & ~B_FLAG);
   regs_.PC = peek16(NMI_VECTOR);
-  nmi_     = false;
+}
+
+void Cpu::step_OAM_DMA() {
+  uint16_t src_addr = (uint16_t)(ppu_->registers().OAMDMA << 8);
+  for (int i = 0; i < 256; i++) {
+    ppu_->write_OAMDATA(peek(src_addr++));
+  }
 }
 
 void Cpu::step_load_mem(const OpCode &op, uint8_t &reg) {

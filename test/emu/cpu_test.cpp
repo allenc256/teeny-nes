@@ -81,7 +81,9 @@ static void single_step_test(const nlohmann::json &test_data) {
     test_ram[to_uint16_t(entry[0])] = to_uint8_t(entry[1]);
   }
 
-  int64_t cycles = cpu.step();
+  int64_t cycles_before = cpu.cycles();
+  cpu.step();
+  int64_t cycles_after = cpu.cycles();
 
   ASSERT_EQ(regs.PC, to_uint16_t(final["pc"]));
   ASSERT_EQ(regs.S, to_uint8_t(final["s"]));
@@ -93,7 +95,7 @@ static void single_step_test(const nlohmann::json &test_data) {
     ASSERT_EQ(test_ram[to_uint16_t(entry[0])], to_uint8_t(entry[1]));
   }
 
-  ASSERT_EQ(cycles, test_data["cycles"].size());
+  ASSERT_EQ(cycles_after - cycles_before, test_data["cycles"].size());
 }
 
 // Single-step tests

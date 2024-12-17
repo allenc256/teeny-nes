@@ -1,5 +1,3 @@
-#include <array>
-#include <bit>
 #include <cassert>
 #include <cstring>
 #include <format>
@@ -9,104 +7,11 @@
 #include "src/emu/cpu.h"
 #include "src/emu/ppu.h"
 
-using enum Ppu::Ops;
-
 static constexpr int SCANLINE_MAX_CYCLES = 341;
 
-static constexpr void add_op(uint16_t &flags, Ppu::Ops op) {
-  flags |= (uint16_t)(1u << op);
-}
-
-static void init_op_table_common(uint16_t *ops) {
-  // Shift register ops.
-  for (int i = 2; i <= 257; i++) {
-    add_op(ops[i], OP_S_REG_SHIFT_BG);
-    add_op(ops[i], OP_S_REG_SHIFT_SP);
-  }
-  for (int i = 322; i <= 337; i++) {
-    add_op(ops[i], OP_S_REG_SHIFT_BG);
-  }
-  for (int i = 9; i <= 257; i += 8) {
-    add_op(ops[i], OP_S_REG_RELOAD_BG);
-  }
-  add_op(ops[329], OP_S_REG_RELOAD_BG);
-  add_op(ops[337], OP_S_REG_RELOAD_BG);
-
-  // Fetch ops.
-  // N.B., garbage NT fetches are NOT emulated.
-  for (int i = 1; i <= 256; i += 8) {
-    add_op(ops[i], OP_FETCH_NT);
-    add_op(ops[i + 2], OP_FETCH_AT);
-    add_op(ops[i + 4], OP_FETCH_BG_LO);
-    add_op(ops[i + 6], OP_FETCH_BG_HI);
-  }
-  for (int i = 321; i <= 336; i += 8) {
-    add_op(ops[i], OP_FETCH_NT);
-    add_op(ops[i + 2], OP_FETCH_AT);
-    add_op(ops[i + 4], OP_FETCH_BG_LO);
-    add_op(ops[i + 6], OP_FETCH_BG_HI);
-  }
-
-  // v register ops.
-  for (int i = 8; i <= 256; i += 8) {
-    add_op(ops[i], OP_V_REG_INC_HORZ);
-  }
-  add_op(ops[256], OP_V_REG_INC_VERT);
-  add_op(ops[257], OP_V_REG_SET_HORZ);
-  add_op(ops[328], OP_V_REG_INC_HORZ);
-  add_op(ops[336], OP_V_REG_INC_HORZ);
-}
-
-static auto init_visible_frame_op_table() {
-  std::array<uint16_t, 341> ops = {0};
-  init_op_table_common(ops.data());
-  for (int i = 2; i <= 257; i++) {
-    add_op(ops[i], OP_DRAW);
-  }
-  return ops;
-}
-
-static auto init_pre_render_op_table() {
-  std::array<uint16_t, 341> ops = {0};
-  init_op_table_common(ops.data());
-  add_op(ops[1], OP_FLAG_CLEAR);
-  for (int i = 280; i <= 304; i++) {
-    add_op(ops[i], OP_V_REG_SET_VERT);
-  }
-  return ops;
-}
-
-static uint16_t init_always_enabled_op_mask() {
-  uint16_t mask = 0;
-  add_op(mask, OP_DRAW);
-  add_op(mask, OP_FLAG_SET_VBLANK);
-  add_op(mask, OP_FLAG_CLEAR);
-  return mask;
-}
-
-static uint16_t init_bg_rendering_op_mask() {
-  uint16_t mask = 0;
-  add_op(mask, OP_S_REG_SHIFT_BG);
-  add_op(mask, OP_S_REG_RELOAD_BG);
-  add_op(mask, OP_FETCH_NT);
-  add_op(mask, OP_FETCH_AT);
-  add_op(mask, OP_FETCH_BG_LO);
-  add_op(mask, OP_FETCH_BG_HI);
-  add_op(mask, OP_V_REG_INC_HORZ);
-  add_op(mask, OP_V_REG_INC_VERT);
-  add_op(mask, OP_V_REG_SET_HORZ);
-  add_op(mask, OP_V_REG_SET_VERT);
-  return mask;
-}
-
-static const auto VISIBLE_FRAME_OP_TABLE = init_visible_frame_op_table();
-static const auto PRE_RENDER_OP_TABLE    = init_pre_render_op_table();
-
-static const uint16_t ALWAYS_ENABLED_OP_MASK = init_always_enabled_op_mask();
-static const uint16_t BG_RENDERING_OP_MASK   = init_bg_rendering_op_mask();
-
 Ppu::Ppu()
-    : cart_(nullptr),
+    : bg_loop_(bg_loop()),
+      cart_(nullptr),
       cpu_(nullptr),
       scanline_(0),
       dot_(0),
@@ -137,14 +42,11 @@ void Ppu::power_up() {
   regs_.shift_bg_hi = 0;
   regs_.shift_at_lo = 0;
   regs_.shift_at_hi = 0;
-  regs_.fetch_nt    = 0;
-  regs_.fetch_at    = 0;
-  regs_.fetch_bg_lo = 0;
-  regs_.fetch_bg_hi = 0;
   scanline_         = PRE_RENDER_SCANLINE;
   dot_              = 0;
   cycles_           = 0;
   frames_           = 0;
+  ready_            = false;
 
   std::memset(oam_, 0, sizeof(oam_));
   std::memset(palette_, 0, sizeof(palette_));
@@ -165,14 +67,11 @@ void Ppu::reset() {
   regs_.shift_bg_hi = 0;
   regs_.shift_at_lo = 0;
   regs_.shift_at_hi = 0;
-  regs_.fetch_nt    = 0;
-  regs_.fetch_at    = 0;
-  regs_.fetch_bg_lo = 0;
-  regs_.fetch_bg_hi = 0;
   scanline_         = PRE_RENDER_SCANLINE;
   dot_              = 0;
   cycles_           = 0;
   frames_           = 0;
+  ready_            = false;
 
   std::memset(back_frame_.get(), 0, sizeof(256 * 240));
   std::memset(front_frame_.get(), 0, sizeof(256 * 240));
@@ -293,17 +192,11 @@ void Ppu::write_PPUSTATUS([[maybe_unused]] uint8_t x) {
 void Ppu::write_OAMADDR(uint8_t x) { regs_.OAMADDR = x; }
 
 void Ppu::write_OAMDATA(uint8_t x) {
-  // nesdev.org suggests ignoring writes entirely when rendering (on the
-  // pre-render line and the visible lines 0–239, provided either sprite or
-  // background rendering is enabled).
-  if (regs_.PPUMASK & PPUMASK_RENDERING &&
-      (scanline_ == PRE_RENDER_SCANLINE || scanline_ < VISIBLE_FRAME_END)) {
-    return;
-  }
-
   oam_[regs_.OAMADDR] = x;
   regs_.OAMADDR++;
 }
+
+void Ppu::write_OAMDMA(uint8_t x) { regs_.OAMDMA = x; }
 
 void Ppu::write_PPUSCROLL(uint8_t x) {
   if (!ready_) {
@@ -345,20 +238,20 @@ void Ppu::write_PPUDATA(uint8_t x) {
   }
 }
 
-void Ppu::write_OAMDMA([[maybe_unused]] uint8_t x) {
-  // TODO: implement OAMDMA
-}
-
 void Ppu::step() {
   assert(scanline_ <= PRE_RENDER_SCANLINE);
   assert(dot_ < SCANLINE_MAX_CYCLES);
 
   if (scanline_ < VISIBLE_FRAME_END) {
-    execute_ops(VISIBLE_FRAME_OP_TABLE[dot_]);
+    draw_loop_step();
+    bg_loop_.step();
   } else if (scanline_ == PRE_RENDER_SCANLINE) {
-    execute_ops(PRE_RENDER_OP_TABLE[dot_]);
+    if (dot_ == 1) {
+      regs_.PPUSTATUS &= ~PPUSTATUS_ALL;
+    }
+    bg_loop_.step();
   } else if (scanline_ == 241 && dot_ == 1) {
-    op_flag_set_vblank(); // only possible post-render op
+    set_vblank();
   }
 
   next_dot();
@@ -392,40 +285,15 @@ void Ppu::next_dot() {
   }
 }
 
-void Ppu::execute_ops(uint16_t op_mask) {
-  uint16_t enabled = ALWAYS_ENABLED_OP_MASK;
-  if (bg_rendering()) {
-    enabled |= BG_RENDERING_OP_MASK;
-  }
-  op_mask &= enabled;
-
-  while (op_mask) {
-    int op = std::countr_zero(op_mask);
-    switch (op) {
-    case OP_DRAW: op_draw(); break;
-    case OP_S_REG_SHIFT_BG: op_s_reg_shift_bg(); break;
-    case OP_S_REG_SHIFT_SP: op_s_reg_shift_sp(); break;
-    case OP_S_REG_RELOAD_BG: op_s_reg_reload_bg(); break;
-    case OP_FETCH_NT: op_fetch_nt(); break;
-    case OP_FETCH_AT: op_fetch_at(); break;
-    case OP_FETCH_BG_LO: op_fetch_bg_lo(); break;
-    case OP_FETCH_BG_HI: op_fetch_bg_hi(); break;
-    case OP_FLAG_SET_VBLANK: op_flag_set_vblank(); break;
-    case OP_FLAG_CLEAR: op_flag_clear(); break;
-    case OP_V_REG_INC_HORZ: op_v_reg_inc_horz(); break;
-    case OP_V_REG_INC_VERT: op_v_reg_inc_vert(); break;
-    case OP_V_REG_SET_HORZ: op_v_reg_set_horz(); break;
-    case OP_V_REG_SET_VERT: op_v_reg_set_vert(); break;
-    default: assert(false); break;
-    }
-    op_mask &= op_mask - 1;
-  }
-}
-
-void Ppu::op_draw() {
+void Ppu::draw_loop_step() {
   if (!bg_rendering()) {
     return;
   }
+  if (!(dot_ >= 2 && dot_ <= 257)) {
+    return;
+  }
+
+  assert(scanline_ >= 0 && scanline_ < 240);
 
   // TODO: handle PPUMASK background clipping
 
@@ -438,36 +306,72 @@ void Ppu::op_draw() {
   int     palette_idx = at_lo | (at_hi << 1);
 
   uint8_t color = palette_[palette_idx * 4 + color_idx];
-  assert(dot_ >= 2 && dot_ <= 257);
-  assert(scanline_ >= 0 && scanline_ < 240);
   back_frame_[scanline_ * 256 + dot_ - 2] = color;
 }
 
-void Ppu::op_s_reg_shift_bg() {
-  assert(bg_rendering());
-  regs_.shift_bg_lo <<= 1;
-  regs_.shift_bg_hi <<= 1;
-  regs_.shift_at_lo <<= 1;
-  regs_.shift_at_hi <<= 1;
+uint8_t Ppu::fetch_nt() {
+  // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
+  uint16_t addr = 0x2000 | (regs_.v & 0x0fff);
+  return peek(addr);
 }
 
-void Ppu::op_s_reg_shift_sp() {
-  // not implemented
+uint8_t Ppu::fetch_at() {
+  // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
+  uint16_t addr = 0x23c0 | (regs_.v & 0x0c00) | ((regs_.v >> 4) & 0x38) |
+                  ((regs_.v >> 2) & 0x07);
+  return peek(addr);
 }
 
-void Ppu::op_s_reg_reload_bg() {
-  assert(bg_rendering());
+uint8_t Ppu::fetch_bg_lo(uint8_t nt) {
+  uint16_t addr = bg_pattern_table_addr();
+  addr += nt << 4;
+  addr += get_bits<V_FINE_Y>(regs_.v);
+  return peek(addr);
+}
 
-  set_bits<0x00ff>(regs_.shift_bg_lo, regs_.fetch_bg_lo);
-  set_bits<0x00ff>(regs_.shift_bg_hi, regs_.fetch_bg_hi);
+uint8_t Ppu::fetch_bg_hi(uint8_t nt) {
+  uint16_t addr = bg_pattern_table_addr() + 8;
+  addr += nt << 4;
+  addr += get_bits<V_FINE_Y>(regs_.v);
+  return peek(addr);
+}
+
+void Ppu::inc_v_horz() {
+  bool overflow = inc_bits<V_COARSE_X, V_COARSE_X_MAX>(regs_.v);
+  if (overflow) {
+    regs_.v ^= V_NAME_TABLE_H;
+  }
+}
+
+void Ppu::inc_v_vert() {
+  bool overflow = inc_bits<V_FINE_Y, V_FINE_Y_MAX>(regs_.v);
+  if (overflow) {
+    overflow = inc_bits<V_COARSE_Y, V_COARSE_Y_MAX>(regs_.v);
+    if (overflow) {
+      regs_.v ^= V_NAME_TABLE_V;
+    }
+  }
+}
+
+void Ppu::set_v_horz() {
+  copy_bits<V_COARSE_X | V_NAME_TABLE_H>(regs_.t, regs_.v);
+}
+
+void Ppu::set_v_vert() {
+  copy_bits<V_COARSE_Y | V_FINE_Y | V_NAME_TABLE_V>(regs_.t, regs_.v);
+}
+
+void Ppu::reload_bg_regs(uint8_t at, uint8_t bg_lo, uint8_t bg_hi) {
+  set_bits<0x00ff>(regs_.shift_bg_lo, bg_lo);
+  set_bits<0x00ff>(regs_.shift_bg_hi, bg_hi);
 
   // See https://www.nesdev.org/wiki/PPU_attribute_tables
   int     y      = get_bits<V_COARSE_Y>(regs_.v) & 1;
   int     x      = get_bits<V_COARSE_X>(regs_.v) & 1;
   int     lo_idx = y * 4 + x * 2;
   int     hi_idx = lo_idx + 1;
-  uint8_t lo     = (uint8_t)((regs_.fetch_at >> lo_idx) & 1);
-  uint8_t hi     = (uint8_t)((regs_.fetch_at >> hi_idx) & 1);
+  uint8_t lo     = (uint8_t)((at >> lo_idx) & 1);
+  uint8_t hi     = (uint8_t)((at >> hi_idx) & 1);
   uint8_t lo_x8  = ~(lo - 1);
   uint8_t hi_x8  = ~(hi - 1);
   // N.B., nesdev.org says that the lo/hi bits populate one bit latches which
@@ -478,71 +382,130 @@ void Ppu::op_s_reg_reload_bg() {
   set_bits<0x00ff>(regs_.shift_at_hi, hi_x8);
 }
 
-void Ppu::op_fetch_nt() {
-  assert(bg_rendering());
-  // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
-  uint16_t addr  = 0x2000 | (regs_.v & 0x0fff);
-  regs_.fetch_nt = peek(addr);
+void Ppu::shift_bg_regs() {
+  regs_.shift_bg_lo <<= 1;
+  regs_.shift_bg_hi <<= 1;
+  regs_.shift_at_lo <<= 1;
+  regs_.shift_at_hi <<= 1;
 }
 
-void Ppu::op_fetch_at() {
-  assert(bg_rendering());
-  // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
-  uint16_t addr = 0x23c0 | (regs_.v & 0x0c00) | ((regs_.v >> 4) & 0x38) |
-                  ((regs_.v >> 2) & 0x07);
-  regs_.fetch_at = peek(addr);
-}
-
-void Ppu::op_fetch_bg_lo() {
-  assert(bg_rendering());
-  uint16_t addr = bg_pattern_table_addr();
-  addr += regs_.fetch_nt << 4;
-  addr += get_bits<V_FINE_Y>(regs_.v);
-  regs_.fetch_bg_lo = peek(addr);
-}
-
-void Ppu::op_fetch_bg_hi() {
-  assert(bg_rendering());
-  uint16_t addr = bg_pattern_table_addr() + 8;
-  addr += regs_.fetch_nt << 4;
-  addr += get_bits<V_FINE_Y>(regs_.v);
-  regs_.fetch_bg_hi = peek(addr);
-}
-
-void Ppu::op_flag_set_vblank() {
+void Ppu::set_vblank() {
   regs_.PPUSTATUS |= PPUSTATUS_VBLANK;
   if (regs_.PPUCTRL & PPUCTRL_NMI_ENABLE) {
     cpu_->signal_NMI();
   }
 }
 
-void Ppu::op_flag_clear() { regs_.PPUSTATUS &= ~PPUSTATUS_ALL; }
-
-void Ppu::op_v_reg_inc_horz() {
-  assert(bg_rendering());
-  bool overflow = inc_bits<V_COARSE_X, V_COARSE_X_MAX>(regs_.v);
-  if (overflow) {
-    regs_.v ^= V_NAME_TABLE_H;
+#define SUSPEND_BG_LOOP()                                                      \
+  last_dot = dot_;                                                             \
+  co_await std::suspend_always();                                              \
+  if (dot_ != last_dot + 1 || !bg_rendering()) {                               \
+    goto bg_loop_idle;                                                         \
   }
-}
 
-void Ppu::op_v_reg_inc_vert() {
-  assert(bg_rendering());
-  bool overflow = inc_bits<V_FINE_Y, V_FINE_Y_MAX>(regs_.v);
-  if (overflow) {
-    overflow = inc_bits<V_COARSE_Y, V_COARSE_Y_MAX>(regs_.v);
-    if (overflow) {
-      regs_.v ^= V_NAME_TABLE_V;
+Coroutine Ppu::bg_loop() {
+  int last_dot = 0;
+
+  while (true) {
+  bg_loop_idle:
+    while (dot_ != 0 || !bg_rendering()) {
+      co_await std::suspend_always();
+    }
+
+    // Cycle 0 is idle.
+    assert(scanline_ == 261 || scanline_ < 240);
+    assert(dot_ == 0);
+    bool skip_dot_0 = scanline_ == 0 && (frames_ & 1);
+    if (!skip_dot_0) {
+      SUSPEND_BG_LOOP();
+    }
+
+    // Cycles 1..256 fetch and load BG shift registers.
+    assert(dot_ == 1);
+    while (dot_ != 257) {
+      uint8_t tmp = fetch_nt();
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      uint8_t nt = tmp;
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      tmp = fetch_at();
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      uint8_t at = tmp;
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      tmp = fetch_bg_lo(nt);
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      uint8_t bg_lo = tmp;
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      tmp = fetch_bg_hi(nt);
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      uint8_t bg_hi = tmp;
+      inc_v_horz();
+      if (dot_ == 256) {
+        inc_v_vert();
+      }
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      reload_bg_regs(at, bg_lo, bg_hi);
+    }
+
+    // Cycle 257 sets the vertical fields of v.
+    assert(dot_ == 257);
+    set_v_horz();
+    SUSPEND_BG_LOOP();
+
+    // Cycles 258..279 are idle.
+    while (dot_ != 280) {
+      SUSPEND_BG_LOOP();
+    }
+
+    // Cycles 280..304 set the horizontal fields of v (pre-render only).
+    for (int i = 280; i <= 304; i++) {
+      if (scanline_ == PRE_RENDER_SCANLINE) {
+        set_v_vert();
+      }
+      SUSPEND_BG_LOOP();
+    }
+
+    // Cycles 305..320 are idle.
+    while (dot_ != 321) {
+      SUSPEND_BG_LOOP();
+    }
+
+    // Cycles 321..336 fetch and load BG shift regs (for the next scanline).
+    assert(dot_ == 321);
+    while (dot_ != 337) {
+      uint8_t tmp = fetch_nt();
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      uint8_t nt = tmp;
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      tmp = fetch_at();
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      uint8_t at = tmp;
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      tmp = fetch_bg_lo(nt);
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      uint8_t bg_lo = tmp;
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      tmp = fetch_bg_hi(nt);
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      uint8_t bg_hi = tmp;
+      inc_v_horz();
+      SUSPEND_BG_LOOP();
+      shift_bg_regs();
+      reload_bg_regs(at, bg_lo, bg_hi);
     }
   }
-}
-
-void Ppu::op_v_reg_set_horz() {
-  assert(bg_rendering());
-  copy_bits<V_COARSE_X | V_NAME_TABLE_H>(regs_.t, regs_.v);
-}
-
-void Ppu::op_v_reg_set_vert() {
-  assert(bg_rendering());
-  copy_bits<V_COARSE_Y | V_FINE_Y | V_NAME_TABLE_V>(regs_.t, regs_.v);
 }
