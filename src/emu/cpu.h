@@ -8,6 +8,7 @@
 class Cart;
 class Ppu;
 class Apu;
+class Input;
 
 class Cpu {
 public:
@@ -143,6 +144,7 @@ public:
   void set_cart(Cart *cart) { cart_ = cart; }
   void set_ppu(Ppu *ppu) { ppu_ = ppu; }
   void set_apu(Apu *apu) { apu_ = apu; }
+  void set_input(Input *input) { input_ = input; }
   void set_test_ram(uint8_t *test_ram) { test_ram_ = test_ram; }
 
   Registers &registers() { return regs_; }
@@ -282,6 +284,7 @@ private:
   Cart     *cart_;
   Ppu      *ppu_;
   Apu      *apu_;
+  Input    *input_;
   int64_t   cycles_;
   bool      oops_;
   bool      jump_;

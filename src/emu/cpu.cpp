@@ -4,6 +4,7 @@
 #include "src/emu/apu.h"
 #include "src/emu/cart.h"
 #include "src/emu/cpu.h"
+#include "src/emu/input.h"
 #include "src/emu/ppu.h"
 
 static constexpr std::array<Cpu::OpCode, 256> init_op_codes() {
@@ -389,9 +390,9 @@ uint8_t Cpu::peek(uint16_t addr) {
     return 0; // TODO: implement APU
   } else {
     switch (addr) {
-    case IO_JOY1:
-    case IO_JOY2:
-    case APU_STATUS: return 0; // TODO: implement APU & I/O
+    case IO_JOY1: return input_->read_controller(0);
+    case IO_JOY2: return input_->read_controller(1);
+    case APU_STATUS: return 0; // TODO: implement APU_STATUS
     case PPU_PPUCTRL: return ppu_->read_PPUCTRL();
     case PPU_PPUMASK: return ppu_->read_PPUMASK();
     case PPU_PPUSTATUS: return ppu_->read_PPUSTATUS();
@@ -426,9 +427,9 @@ void Cpu::poke(uint16_t addr, uint8_t x) {
     // TODO: implement APU
   } else {
     switch (addr) {
-    case IO_JOY1:
-    case IO_JOY2:
-    case APU_STATUS: break; // TODO: implement APU & I/O
+    case IO_JOY1: input_->write_controller(x);
+    case IO_JOY2: break;    // TODO: implement APU
+    case APU_STATUS: break; // TODO: implement APU
     case PPU_PPUCTRL: ppu_->write_PPUCTRL(x); break;
     case PPU_PPUMASK: ppu_->write_PPUMASK(x); break;
     case PPU_PPUSTATUS: ppu_->write_PPUSTATUS(x); break;

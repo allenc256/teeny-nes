@@ -5,6 +5,7 @@
 Nes::Nes() : powered_up_(false) {
   cpu_.set_apu(&apu_);
   cpu_.set_ppu(&ppu_);
+  cpu_.set_input(&input_);
   ppu_.set_cpu(&cpu_);
 }
 
@@ -19,6 +20,7 @@ void Nes::power_up() {
   cpu_.power_up();
   ppu_.power_up();
   apu_.power_up();
+  input_.power_up();
   powered_up_ = true;
 }
 
@@ -30,6 +32,7 @@ void Nes::reset() {
   cpu_.reset();
   ppu_.reset();
   apu_.reset();
+  input_.power_up();
 }
 
 void Nes::load_cart(std::string_view path) {
@@ -40,11 +43,13 @@ void Nes::load_cart(std::string_view path) {
   ppu_.set_cart(cart_.get());
 }
 
-void Nes::step() {
-  cpu_.step();
-
-  int ppu_catchup = (int)(cpu_.cycles() * 3 - ppu_.cycles());
-  for (int i = 0; i < ppu_catchup; i++) {
-    ppu_.step();
+void Nes::step(int cpu_cycles) {
+  int64_t target = cpu_.cycles() + cpu_cycles;
+  while (cpu_.cycles() < target) {
+    cpu_.step();
+    int ppu_catchup = (int)(cpu_.cycles() * 3 - ppu_.cycles());
+    for (int i = 0; i < ppu_catchup; i++) {
+      ppu_.step();
+    }
   }
 }

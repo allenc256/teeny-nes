@@ -273,10 +273,7 @@ void Ppu::step_visible_frame() {
     draw_dot();
   }
 
-  if (scanline_ > 0) {
-    spr_loop_.step();
-  }
-
+  spr_loop_.step();
   bg_loop_.step();
 }
 
@@ -358,9 +355,9 @@ void Ppu::draw_dot() {
         regs_.PPUSTATUS |= PPUSTATUS_SPR0_HIT;
       }
       if (spr_behind || pat == 0) {
-        pat           = bg_pat;
         uint8_t at_lo = (regs_.shift_at_lo >> (15 - regs_.x)) & 1;
         uint8_t at_hi = (regs_.shift_at_hi >> (15 - regs_.x)) & 1;
+        pat           = bg_pat;
         pal           = at_lo | (at_hi << 1);
       }
     }
@@ -434,8 +431,8 @@ void Ppu::bg_loop_reload_regs(uint8_t at, uint8_t pt_lo, uint8_t pt_hi) {
   set_bits<0x00ff>(regs_.shift_bg_hi, pt_hi);
 
   // See https://www.nesdev.org/wiki/PPU_attribute_tables
-  int     y      = get_bits<V_COARSE_Y>(regs_.v) & 1;
-  int     x      = get_bits<V_COARSE_X>(regs_.v) & 1;
+  int     y      = (get_bits<V_COARSE_Y>(regs_.v) >> 1) & 1;
+  int     x      = (get_bits<V_COARSE_X>(regs_.v) >> 1) & 1;
   int     lo_idx = y * 4 + x * 2;
   int     hi_idx = lo_idx + 1;
   uint8_t lo     = (uint8_t)((at >> lo_idx) & 1);
@@ -444,7 +441,7 @@ void Ppu::bg_loop_reload_regs(uint8_t at, uint8_t pt_lo, uint8_t pt_hi) {
   uint8_t hi_x8  = ~(hi - 1);
   // N.B., nesdev.org says that the lo/hi bits populate one bit latches which
   // then are shifted repeatedly. For simplicity, we just make the AT shift
-  // registers 16 bits (instead of 8 bits) wide and set the incoming 8 bits to
+  // registers 16 bits (instead of 8 bits) wide and set the incoming 8 bits
   // be repeated copies of the lo/hi bits.
   set_bits<0x00ff>(regs_.shift_at_lo, lo_x8);
   set_bits<0x00ff>(regs_.shift_at_hi, hi_x8);
@@ -608,7 +605,7 @@ Coroutine Ppu::spr_loop() {
     }
 
     // Cycle 0 is idle.
-    assert(scanline_ >= 1 && scanline_ < 240);
+    assert(scanline_ >= 0 && scanline_ < 240);
     assert(dot_ == 0);
     SPRITE_LOOP_SUSPEND();
 
@@ -661,10 +658,9 @@ Coroutine Ppu::spr_loop() {
     assert(dot_ == 257);
     spr_buf_.clear();
     for (int soam_index = 0; soam_index < 32; soam_index += 4) {
-      SPRITE_LOOP_SUSPEND();
-      SPRITE_LOOP_SUSPEND();
-      SPRITE_LOOP_SUSPEND();
-      SPRITE_LOOP_SUSPEND();
+      for (int i = 0; i < 4; i++) {
+        SPRITE_LOOP_SUSPEND();
+      }
       uint8_t y = soam_[soam_index];
       if (spr_y_in_range(y, scanline_, spr_height)) {
         uint8_t  tile_idx = soam_[soam_index + 1];
@@ -685,10 +681,9 @@ Coroutine Ppu::spr_loop() {
         SPRITE_LOOP_SUSPEND();
         spr_loop_render(x, attr, pt_lo, pt_hi, soam_index == 0);
       } else {
-        SPRITE_LOOP_SUSPEND();
-        SPRITE_LOOP_SUSPEND();
-        SPRITE_LOOP_SUSPEND();
-        SPRITE_LOOP_SUSPEND();
+        for (int i = 0; i < 4; i++) {
+          SPRITE_LOOP_SUSPEND();
+        }
       }
     }
   }
