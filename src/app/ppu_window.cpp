@@ -239,7 +239,7 @@ static void extract_name_table(
       uint8_t  pattern = ppu.peek(addr);
       extract_pattern(
           ppu,
-          ppu.bg_pattern_table_addr(),
+          ppu.bg_pt_base_addr(),
           pattern,
           pix,
           pix_pitch,

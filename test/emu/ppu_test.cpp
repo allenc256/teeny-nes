@@ -122,10 +122,18 @@ TEST(Ppu, ready) {
   ASSERT_TRUE(ppu.ready());
 }
 
-TEST(Ppu, bg_pattern_table_addr) {
+TEST(Ppu, bg_pt_base_addr) {
   Ppu ppu;
   ppu.registers().PPUCTRL = 0;
-  ASSERT_EQ(ppu.bg_pattern_table_addr(), 0);
+  ASSERT_EQ(ppu.bg_pt_base_addr(), 0);
   ppu.registers().PPUCTRL = 0b00010000;
-  ASSERT_EQ(ppu.bg_pattern_table_addr(), 0x1000);
+  ASSERT_EQ(ppu.bg_pt_base_addr(), 0x1000);
+}
+
+TEST(Ppu, spr_pt_base_addr) {
+  Ppu ppu;
+  ppu.registers().PPUCTRL = 0;
+  ASSERT_EQ(ppu.spr_pt_base_addr(), 0);
+  ppu.registers().PPUCTRL = 0b00001000;
+  ASSERT_EQ(ppu.spr_pt_base_addr(), 0x1000);
 }

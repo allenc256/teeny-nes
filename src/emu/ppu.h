@@ -8,6 +8,18 @@
 class Cpu;
 class Cart;
 
+class SpriteBuf {
+public:
+  SpriteBuf();
+
+  void clear();
+  void render(int x, int pattern, int palette, bool &behind, bool &spr0);
+  void get(int x, int &pattern, int &palette, bool &behind, bool &spr0) const;
+
+private:
+  uint8_t bytes_[256];
+};
+
 class Ppu {
 public:
   struct Registers {
@@ -43,9 +55,12 @@ public:
   bool           ready() const { return ready_; }
   const uint8_t *frame() const { return front_frame_.get(); }
 
-  uint16_t bg_pattern_table_addr() const;
+  bool     rendering() const;
   bool     bg_rendering() const;
-  int      emphasis() const;
+  bool     spr_rendering() const;
+  uint16_t bg_pt_base_addr() const;
+  uint16_t spr_pt_base_addr() const;
+  int      color_emphasis() const;
 
   uint8_t read_PPUCTRL();
   uint8_t read_PPUMASK();
@@ -136,7 +151,7 @@ private:
   // |+-------- Sprite 0 hit flag
   // +--------- Vblank flag, cleared on read. Unreliable; see below.
   static constexpr uint8_t PPUSTATUS_SPR_OVF  = 0b00100000;
-  static constexpr uint8_t PPUSTATUS_SPR_HIT0 = 0b01000000;
+  static constexpr uint8_t PPUSTATUS_SPR0_HIT = 0b01000000;
   static constexpr uint8_t PPUSTATUS_VBLANK   = 0b10000000;
   static constexpr uint8_t PPUSTATUS_ALL      = 0b11100000;
 
@@ -152,36 +167,59 @@ private:
   static constexpr int      V_COARSE_Y_MAX = 29;
   static constexpr int      V_FINE_Y_MAX   = 7;
 
+  // Sprite attributes
+  // =================
+  //
+  // 76543210
+  // ||||||||
+  // ||||||++- Palette (4 to 7) of sprite
+  // |||+++--- Unimplemented (read 0)
+  // ||+------ Priority (0: in front of background; 1: behind background)
+  // |+------- Flip sprite horizontally
+  // +-------- Flip sprite vertically
+  static constexpr uint8_t SPR_ATTR_PALETTE   = 0b00000011;
+  static constexpr uint8_t SPR_ATTR_PRIO      = 0b00100000;
+  static constexpr uint8_t SPR_ATTR_FLIP_HORZ = 0b01000000;
+  static constexpr uint8_t SPR_ATTR_FLIP_VERT = 0b10000000;
+
   static constexpr int VISIBLE_FRAME_END   = 240;
   static constexpr int PRE_RENDER_SCANLINE = 261;
 
+  void step_visible_frame();
+  void step_pre_render_scanline();
+  void step_post_render_scanline();
   void next_dot();
 
   uint8_t read_open_bus();
+  void    draw_dot();
 
   Coroutine bg_loop();
+  uint8_t   bg_loop_fetch_nt();
+  uint8_t   bg_loop_fetch_at();
+  uint8_t   bg_loop_fetch_pt_lo(uint8_t nt);
+  uint8_t   bg_loop_fetch_pt_hi(uint8_t nt);
+  void      bg_loop_shift_regs();
+  void      bg_loop_reload_regs(uint8_t at, uint8_t pt_lo, uint8_t pt_hi);
+  void      bg_loop_inc_v_horz();
+  void      bg_loop_inc_v_vert();
+  void      bg_loop_set_v_horz();
+  void      bg_loop_set_v_vert();
 
-  void    draw_loop_step();
-  uint8_t fetch_nt();
-  uint8_t fetch_at();
-  uint8_t fetch_bg_lo(uint8_t nt);
-  uint8_t fetch_bg_hi(uint8_t nt);
-  void    shift_bg_regs();
-  void    reload_bg_regs(uint8_t at, uint8_t bg_lo, uint8_t bg_hi);
-  void    inc_v_horz();
-  void    inc_v_vert();
-  void    set_v_horz();
-  void    set_v_vert();
-  void    set_vblank();
+  Coroutine spr_loop();
+  void
+  spr_loop_render(int x, uint8_t attr, uint8_t pt_lo, uint8_t pt_hi, bool spr0);
 
   using Frame = std::unique_ptr<uint8_t[]>;
 
   Coroutine bg_loop_;
+  Coroutine spr_loop_;
 
   Registers regs_;
   uint8_t   vram_[2 * 1024];
   uint8_t   palette_[32];
   uint8_t   oam_[256];
+  uint8_t   soam_[32];
+  SpriteBuf spr_buf_;
   Cart     *cart_;
   Cpu      *cpu_;
   int       scanline_;

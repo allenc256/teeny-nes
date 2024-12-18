@@ -11,6 +11,7 @@ static constexpr int SCANLINE_MAX_CYCLES = 341;
 
 Ppu::Ppu()
     : bg_loop_(bg_loop()),
+      spr_loop_(spr_loop()),
       cart_(nullptr),
       cpu_(nullptr),
       scanline_(0),
@@ -21,12 +22,24 @@ Ppu::Ppu()
       frames_(0),
       ready_(false) {}
 
-uint16_t Ppu::bg_pattern_table_addr() const {
+uint16_t Ppu::bg_pt_base_addr() const {
   return (uint16_t)((regs_.PPUCTRL & PPUCTRL_BG_ADDR) << 8);
 }
 
+bool Ppu::rendering() const { return regs_.PPUMASK & PPUMASK_RENDERING; }
 bool Ppu::bg_rendering() const { return regs_.PPUMASK & PPUMASK_BG_RENDERING; }
-int  Ppu::emphasis() const { return get_bits<PPUMASK_EMPHASIS>(regs_.PPUMASK); }
+
+bool Ppu::spr_rendering() const {
+  return regs_.PPUMASK & PPUMASK_SPR_RENDERING;
+}
+
+int Ppu::color_emphasis() const {
+  return get_bits<PPUMASK_EMPHASIS>(regs_.PPUMASK);
+}
+
+uint16_t Ppu::spr_pt_base_addr() const {
+  return (uint16_t)((regs_.PPUCTRL & PPUCTRL_SPR_ADDR) << 9);
+}
 
 void Ppu::power_up() {
   regs_.PPUCTRL     = 0;
@@ -49,6 +62,7 @@ void Ppu::power_up() {
   ready_            = false;
 
   std::memset(oam_, 0, sizeof(oam_));
+  std::memset(soam_, 0, sizeof(soam_));
   std::memset(palette_, 0, sizeof(palette_));
   std::memset(vram_, 0, sizeof(vram_));
   std::memset(back_frame_.get(), 0, sizeof(256 * 240));
@@ -243,107 +257,161 @@ void Ppu::step() {
   assert(dot_ < SCANLINE_MAX_CYCLES);
 
   if (scanline_ < VISIBLE_FRAME_END) {
-    draw_loop_step();
-    bg_loop_.step();
+    step_visible_frame();
   } else if (scanline_ == PRE_RENDER_SCANLINE) {
-    if (dot_ == 1) {
-      regs_.PPUSTATUS &= ~PPUSTATUS_ALL;
-    }
-    bg_loop_.step();
-  } else if (scanline_ == 241 && dot_ == 1) {
-    set_vblank();
+    step_pre_render_scanline();
+  } else {
+    step_post_render_scanline();
   }
 
   next_dot();
   cycles_++;
 }
 
+void Ppu::step_visible_frame() {
+  if (dot_ >= 2 && dot_ <= 257) {
+    draw_dot();
+  }
+
+  if (scanline_ > 0) {
+    spr_loop_.step();
+  }
+
+  bg_loop_.step();
+}
+
+void Ppu::step_pre_render_scanline() {
+  if (dot_ == 1) {
+    regs_.PPUSTATUS &= ~PPUSTATUS_ALL;
+  }
+
+  bg_loop_.step();
+}
+
+void Ppu::step_post_render_scanline() {
+  if (dot_ == 0 && scanline_ == 240) {
+    frames_++;
+    back_frame_.swap(front_frame_);
+    // TODO: is this too early to set the ready flag?
+    ready_ = true;
+  }
+
+  if (scanline_ == 241 && dot_ == 1) {
+    regs_.PPUSTATUS |= PPUSTATUS_VBLANK;
+    if (regs_.PPUCTRL & PPUCTRL_NMI_ENABLE) {
+      cpu_->signal_NMI();
+    }
+  }
+}
+
 void Ppu::next_dot() {
+  int scanline_cycles = SCANLINE_MAX_CYCLES;
+  if (scanline_ == PRE_RENDER_SCANLINE && (frames_ & 1)) {
+    scanline_cycles--;
+  }
+
   // Increment dot.
   dot_++;
-  if (dot_ < SCANLINE_MAX_CYCLES) {
+  if (dot_ < scanline_cycles) {
     return;
   }
 
   // Dot overflow -> increment scanline.
   dot_ = 0;
   scanline_++;
-  if (scanline_ < PRE_RENDER_SCANLINE) {
-    return;
-  } else if (scanline_ == PRE_RENDER_SCANLINE) {
-    frames_++;
-    back_frame_.swap(front_frame_);
-    ready_ = frames_ >= 1;
+  if (scanline_ <= PRE_RENDER_SCANLINE) {
     return;
   }
 
   // Scanline overflow -> wrap back to 0.
-  scanline_      = 0;
-  bool odd_frame = frames_ & 1;
-  if (bg_rendering() && odd_frame) {
-    dot_++;
-  }
+  scanline_ = 0;
 }
 
-void Ppu::draw_loop_step() {
-  if (!bg_rendering()) {
-    return;
-  }
-  if (!(dot_ >= 2 && dot_ <= 257)) {
-    return;
-  }
-
+void Ppu::draw_dot() {
   assert(scanline_ >= 0 && scanline_ < 240);
+  assert(dot_ >= 2 && dot_ <= 257);
 
-  // TODO: handle PPUMASK background clipping
+  int x            = dot_ - 2;
+  int frame_offset = scanline_ * 256 + x;
 
-  uint8_t bg_lo     = (regs_.shift_bg_lo >> (15 - regs_.x)) & 1;
-  uint8_t bg_hi     = (regs_.shift_bg_hi >> (15 - regs_.x)) & 1;
-  int     color_idx = bg_lo | (bg_hi << 1);
+  if (!rendering()) {
+    back_frame_[frame_offset] = palette_[0];
+    return;
+  }
 
-  uint8_t at_lo       = (regs_.shift_at_lo >> (15 - regs_.x)) & 1;
-  uint8_t at_hi       = (regs_.shift_at_hi >> (15 - regs_.x)) & 1;
-  int     palette_idx = at_lo | (at_hi << 1);
+  int  pat           = 0;
+  int  pal           = 0;
+  bool spr_behind    = false;
+  bool spr0_rendered = false;
 
-  uint8_t color = palette_[palette_idx * 4 + color_idx];
-  back_frame_[scanline_ * 256 + dot_ - 2] = color;
+  if (spr_rendering()) {
+    spr_buf_.get(x, pat, pal, spr_behind, spr0_rendered);
+    pal += 4;
+  }
+
+  if (bg_rendering()) {
+    uint8_t bg_lo  = (regs_.shift_bg_lo >> (15 - regs_.x)) & 1;
+    uint8_t bg_hi  = (regs_.shift_bg_hi >> (15 - regs_.x)) & 1;
+    int     bg_pat = bg_lo | (bg_hi << 1);
+    if (bg_pat) {
+      if (spr0_rendered) {
+        regs_.PPUSTATUS |= PPUSTATUS_SPR0_HIT;
+      }
+      if (spr_behind || pat == 0) {
+        pat           = bg_pat;
+        uint8_t at_lo = (regs_.shift_at_lo >> (15 - regs_.x)) & 1;
+        uint8_t at_hi = (regs_.shift_at_hi >> (15 - regs_.x)) & 1;
+        pal           = at_lo | (at_hi << 1);
+      }
+    }
+  }
+
+  // TODO: handle PPUMASK left clip
+
+  uint8_t color;
+  if (pat) {
+    color = palette_[pal * 4 + pat];
+  } else {
+    color = palette_[0];
+  }
+  back_frame_[frame_offset] = color;
 }
 
-uint8_t Ppu::fetch_nt() {
+uint8_t Ppu::bg_loop_fetch_nt() {
   // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
   uint16_t addr = 0x2000 | (regs_.v & 0x0fff);
   return peek(addr);
 }
 
-uint8_t Ppu::fetch_at() {
+uint8_t Ppu::bg_loop_fetch_at() {
   // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
   uint16_t addr = 0x23c0 | (regs_.v & 0x0c00) | ((regs_.v >> 4) & 0x38) |
                   ((regs_.v >> 2) & 0x07);
   return peek(addr);
 }
 
-uint8_t Ppu::fetch_bg_lo(uint8_t nt) {
-  uint16_t addr = bg_pattern_table_addr();
+uint8_t Ppu::bg_loop_fetch_pt_lo(uint8_t nt) {
+  uint16_t addr = bg_pt_base_addr();
   addr += nt << 4;
   addr += get_bits<V_FINE_Y>(regs_.v);
   return peek(addr);
 }
 
-uint8_t Ppu::fetch_bg_hi(uint8_t nt) {
-  uint16_t addr = bg_pattern_table_addr() + 8;
+uint8_t Ppu::bg_loop_fetch_pt_hi(uint8_t nt) {
+  uint16_t addr = bg_pt_base_addr() + 8;
   addr += nt << 4;
   addr += get_bits<V_FINE_Y>(regs_.v);
   return peek(addr);
 }
 
-void Ppu::inc_v_horz() {
+void Ppu::bg_loop_inc_v_horz() {
   bool overflow = inc_bits<V_COARSE_X, V_COARSE_X_MAX>(regs_.v);
   if (overflow) {
     regs_.v ^= V_NAME_TABLE_H;
   }
 }
 
-void Ppu::inc_v_vert() {
+void Ppu::bg_loop_inc_v_vert() {
   bool overflow = inc_bits<V_FINE_Y, V_FINE_Y_MAX>(regs_.v);
   if (overflow) {
     overflow = inc_bits<V_COARSE_Y, V_COARSE_Y_MAX>(regs_.v);
@@ -353,17 +421,17 @@ void Ppu::inc_v_vert() {
   }
 }
 
-void Ppu::set_v_horz() {
+void Ppu::bg_loop_set_v_horz() {
   copy_bits<V_COARSE_X | V_NAME_TABLE_H>(regs_.t, regs_.v);
 }
 
-void Ppu::set_v_vert() {
+void Ppu::bg_loop_set_v_vert() {
   copy_bits<V_COARSE_Y | V_FINE_Y | V_NAME_TABLE_V>(regs_.t, regs_.v);
 }
 
-void Ppu::reload_bg_regs(uint8_t at, uint8_t bg_lo, uint8_t bg_hi) {
-  set_bits<0x00ff>(regs_.shift_bg_lo, bg_lo);
-  set_bits<0x00ff>(regs_.shift_bg_hi, bg_hi);
+void Ppu::bg_loop_reload_regs(uint8_t at, uint8_t pt_lo, uint8_t pt_hi) {
+  set_bits<0x00ff>(regs_.shift_bg_lo, pt_lo);
+  set_bits<0x00ff>(regs_.shift_bg_hi, pt_hi);
 
   // See https://www.nesdev.org/wiki/PPU_attribute_tables
   int     y      = get_bits<V_COARSE_Y>(regs_.v) & 1;
@@ -382,32 +450,22 @@ void Ppu::reload_bg_regs(uint8_t at, uint8_t bg_lo, uint8_t bg_hi) {
   set_bits<0x00ff>(regs_.shift_at_hi, hi_x8);
 }
 
-void Ppu::shift_bg_regs() {
+void Ppu::bg_loop_shift_regs() {
   regs_.shift_bg_lo <<= 1;
   regs_.shift_bg_hi <<= 1;
   regs_.shift_at_lo <<= 1;
   regs_.shift_at_hi <<= 1;
 }
 
-void Ppu::set_vblank() {
-  regs_.PPUSTATUS |= PPUSTATUS_VBLANK;
-  if (regs_.PPUCTRL & PPUCTRL_NMI_ENABLE) {
-    cpu_->signal_NMI();
-  }
-}
-
 #define SUSPEND_BG_LOOP()                                                      \
-  last_dot = dot_;                                                             \
   co_await std::suspend_always();                                              \
-  if (dot_ != last_dot + 1 || !bg_rendering()) {                               \
-    goto bg_loop_idle;                                                         \
+  if (dot_ == 0 || !bg_rendering()) {                                          \
+    goto bg_loop_reset;                                                        \
   }
 
 Coroutine Ppu::bg_loop() {
-  int last_dot = 0;
-
   while (true) {
-  bg_loop_idle:
+  bg_loop_reset:
     while (dot_ != 0 || !bg_rendering()) {
       co_await std::suspend_always();
     }
@@ -415,48 +473,45 @@ Coroutine Ppu::bg_loop() {
     // Cycle 0 is idle.
     assert(scanline_ == 261 || scanline_ < 240);
     assert(dot_ == 0);
-    bool skip_dot_0 = scanline_ == 0 && (frames_ & 1);
-    if (!skip_dot_0) {
-      SUSPEND_BG_LOOP();
-    }
+    SUSPEND_BG_LOOP();
 
     // Cycles 1..256 fetch and load BG shift registers.
     assert(dot_ == 1);
     while (dot_ != 257) {
-      uint8_t tmp = fetch_nt();
+      uint8_t tmp = bg_loop_fetch_nt();
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
+      bg_loop_shift_regs();
       uint8_t nt = tmp;
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
-      tmp = fetch_at();
+      bg_loop_shift_regs();
+      tmp = bg_loop_fetch_at();
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
+      bg_loop_shift_regs();
       uint8_t at = tmp;
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
-      tmp = fetch_bg_lo(nt);
+      bg_loop_shift_regs();
+      tmp = bg_loop_fetch_pt_lo(nt);
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
+      bg_loop_shift_regs();
       uint8_t bg_lo = tmp;
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
-      tmp = fetch_bg_hi(nt);
+      bg_loop_shift_regs();
+      tmp = bg_loop_fetch_pt_hi(nt);
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
+      bg_loop_shift_regs();
       uint8_t bg_hi = tmp;
-      inc_v_horz();
+      bg_loop_inc_v_horz();
       if (dot_ == 256) {
-        inc_v_vert();
+        bg_loop_inc_v_vert();
       }
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
-      reload_bg_regs(at, bg_lo, bg_hi);
+      bg_loop_shift_regs();
+      bg_loop_reload_regs(at, bg_lo, bg_hi);
     }
 
     // Cycle 257 sets the vertical fields of v.
     assert(dot_ == 257);
-    set_v_horz();
+    bg_loop_set_v_horz();
     SUSPEND_BG_LOOP();
 
     // Cycles 258..279 are idle.
@@ -467,7 +522,7 @@ Coroutine Ppu::bg_loop() {
     // Cycles 280..304 set the horizontal fields of v (pre-render only).
     for (int i = 280; i <= 304; i++) {
       if (scanline_ == PRE_RENDER_SCANLINE) {
-        set_v_vert();
+        bg_loop_set_v_vert();
       }
       SUSPEND_BG_LOOP();
     }
@@ -480,32 +535,208 @@ Coroutine Ppu::bg_loop() {
     // Cycles 321..336 fetch and load BG shift regs (for the next scanline).
     assert(dot_ == 321);
     while (dot_ != 337) {
-      uint8_t tmp = fetch_nt();
+      uint8_t tmp = bg_loop_fetch_nt();
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
+      bg_loop_shift_regs();
       uint8_t nt = tmp;
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
-      tmp = fetch_at();
+      bg_loop_shift_regs();
+      tmp = bg_loop_fetch_at();
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
+      bg_loop_shift_regs();
       uint8_t at = tmp;
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
-      tmp = fetch_bg_lo(nt);
+      bg_loop_shift_regs();
+      tmp = bg_loop_fetch_pt_lo(nt);
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
+      bg_loop_shift_regs();
       uint8_t bg_lo = tmp;
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
-      tmp = fetch_bg_hi(nt);
+      bg_loop_shift_regs();
+      tmp = bg_loop_fetch_pt_hi(nt);
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
+      bg_loop_shift_regs();
       uint8_t bg_hi = tmp;
-      inc_v_horz();
+      bg_loop_inc_v_horz();
       SUSPEND_BG_LOOP();
-      shift_bg_regs();
-      reload_bg_regs(at, bg_lo, bg_hi);
+      bg_loop_shift_regs();
+      bg_loop_reload_regs(at, bg_lo, bg_hi);
     }
   }
+}
+
+static bool spr_y_in_range(int spr_y, int scanline, int spr_height) {
+  return scanline >= spr_y && scanline < spr_y + spr_height;
+}
+
+static uint16_t spr_calc_pt_addr(
+    int      rel_y,
+    uint8_t  tile_index,
+    bool     size_8x16,
+    bool     flip_vert,
+    uint16_t base_pt_addr
+) {
+  if (size_8x16) {
+    assert(rel_y >= 0 && rel_y < 16);
+    if (flip_vert) {
+      rel_y = 15 - rel_y;
+    }
+    base_pt_addr = (uint16_t)((tile_index & 1) << 12);
+    tile_index   = (uint8_t)((tile_index & 0xfe) | (rel_y >> 3));
+    rel_y        = rel_y & 7;
+  } else {
+    assert(rel_y >= 0 && rel_y < 8);
+    if (flip_vert) {
+      rel_y = 7 - rel_y;
+    }
+  }
+  return (uint16_t)(base_pt_addr + (tile_index << 4) + rel_y);
+}
+
+#define SPRITE_LOOP_SUSPEND()                                                  \
+  co_await std::suspend_always();                                              \
+  if (dot_ == 0 || !rendering()) {                                             \
+    goto spr_loop_reset;                                                       \
+  }
+
+// Reference: https://forums.nesdev.org/viewtopic.php?t=15870
+Coroutine Ppu::spr_loop() {
+  while (true) {
+  spr_loop_reset:
+    while (dot_ != 0 || !rendering()) {
+      co_await std::suspend_always();
+    }
+
+    // Cycle 0 is idle.
+    assert(scanline_ >= 1 && scanline_ < 240);
+    assert(dot_ == 0);
+    SPRITE_LOOP_SUSPEND();
+
+    // Cycles 1..64 clear the secondary OAM.
+    assert(dot_ == 1);
+    for (int i = 0; i < 32; i++) {
+      SPRITE_LOOP_SUSPEND();
+      soam_[i] = 0xff;
+      SPRITE_LOOP_SUSPEND();
+    }
+
+    // Cycles 65..256 are sprite evaluation.
+    assert(dot_ == 65);
+    bool spr_size_8x16 = regs_.PPUCTRL & PPUCTRL_SPR_SIZE;
+    int  spr_height    = spr_size_8x16 ? 16 : 8;
+    for (int i = 0, soam_index = 0; i < 256; i += 4) {
+      uint8_t y = oam_[i];
+      SPRITE_LOOP_SUSPEND();
+      soam_[soam_index] = y;
+      SPRITE_LOOP_SUSPEND();
+      if (spr_y_in_range(y, scanline_, spr_height)) {
+        unsigned char tmp = oam_[i + 1];
+        SPRITE_LOOP_SUSPEND();
+        soam_[++soam_index] = tmp;
+        SPRITE_LOOP_SUSPEND();
+        tmp = oam_[i + 2];
+        SPRITE_LOOP_SUSPEND();
+        soam_[++soam_index] = tmp;
+        SPRITE_LOOP_SUSPEND();
+        tmp = oam_[i + 3];
+        SPRITE_LOOP_SUSPEND();
+        soam_[++soam_index] = tmp;
+        SPRITE_LOOP_SUSPEND();
+        ++soam_index;
+
+        // TODO: implement "correct" buggy sprite overflow.
+        if (soam_index >= 32) {
+          regs_.PPUSTATUS |= PPUSTATUS_SPR_OVF;
+          break;
+        }
+      }
+    }
+
+    // Leftover cycles from sprite evaluation are idle.
+    while (dot_ != 257) {
+      SPRITE_LOOP_SUSPEND();
+    }
+
+    // Cycles 257..320 are sprite tile fetches and render.
+    assert(dot_ == 257);
+    spr_buf_.clear();
+    for (int soam_index = 0; soam_index < 32; soam_index += 4) {
+      SPRITE_LOOP_SUSPEND();
+      SPRITE_LOOP_SUSPEND();
+      SPRITE_LOOP_SUSPEND();
+      SPRITE_LOOP_SUSPEND();
+      uint8_t y = soam_[soam_index];
+      if (spr_y_in_range(y, scanline_, spr_height)) {
+        uint8_t  tile_idx = soam_[soam_index + 1];
+        uint8_t  attr     = soam_[soam_index + 2];
+        uint8_t  x        = soam_[soam_index + 3];
+        uint16_t addr     = spr_calc_pt_addr(
+            scanline_ - y,
+            tile_idx,
+            spr_size_8x16,
+            attr & SPR_ATTR_FLIP_VERT,
+            spr_pt_base_addr()
+        );
+        uint8_t pt_lo = peek(addr);
+        SPRITE_LOOP_SUSPEND();
+        SPRITE_LOOP_SUSPEND();
+        uint8_t pt_hi = peek(addr + 8);
+        SPRITE_LOOP_SUSPEND();
+        SPRITE_LOOP_SUSPEND();
+        spr_loop_render(x, attr, pt_lo, pt_hi, soam_index == 0);
+      } else {
+        SPRITE_LOOP_SUSPEND();
+        SPRITE_LOOP_SUSPEND();
+        SPRITE_LOOP_SUSPEND();
+        SPRITE_LOOP_SUSPEND();
+      }
+    }
+  }
+}
+
+void Ppu::spr_loop_render(
+    int x, uint8_t attr, uint8_t pt_lo, uint8_t pt_hi, bool spr0
+) {
+  assert(x >= 0 && x < 256);
+  int  end       = std::min(x + 7, 255);
+  int  pal       = attr & SPR_ATTR_PALETTE;
+  bool prio      = attr & SPR_ATTR_PRIO;
+  bool flip_horz = attr & SPR_ATTR_FLIP_HORZ;
+  for (int i = 0; x + i <= end; i++) {
+    bool lo, hi;
+    if (flip_horz) {
+      lo = pt_lo & (1u << i);
+      hi = pt_hi & (1u << i);
+    } else {
+      lo = pt_lo & (1u << (7 - i));
+      hi = pt_hi & (1u << (7 - i));
+    }
+    int pat = lo + (hi << 1);
+    spr_buf_.render(x + i, pat, pal, prio, spr0);
+  }
+}
+
+SpriteBuf::SpriteBuf() { clear(); }
+
+void SpriteBuf::clear() { std::memset(bytes_, 0, sizeof(bytes_)); }
+
+void SpriteBuf::render(
+    int x, int pattern, int palette, bool &behind, bool &spr0
+) {
+  assert(x >= 0 && x < 256);
+  assert(pattern >= 0 && pattern < 4);
+  assert(palette >= 0 && palette < 4);
+  if (bytes_[x] || !pattern) {
+    return;
+  }
+  bytes_[x] = (uint8_t)(pattern | (palette << 2) | (behind << 4) | (spr0 << 5));
+}
+
+void SpriteBuf::get(int x, int &pattern, int &palette, bool &behind, bool &spr0)
+    const {
+  assert(x >= 0 && x < 256);
+  pattern = bytes_[x] & 3;
+  palette = (bytes_[x] >> 2) & 3;
+  behind  = (bytes_[x] >> 4) & 1;
+  spr0    = (bytes_[x] >> 5) & 1;
 }

@@ -25,7 +25,7 @@ void GameWindow::render() {
 void GameWindow::prepare_frame() {
   int    pitch;
   Pixel *dst;
-  int    emphasis = nes_.ppu().emphasis();
+  int    emphasis = nes_.ppu().color_emphasis();
   auto   src      = nes_.ppu().frame();
   auto   palette  = PALETTE[emphasis];
 
