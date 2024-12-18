@@ -178,8 +178,8 @@ static void extract_pattern(
     uint8_t lo_mem = ppu.peek(addr + y_off);
     uint8_t hi_mem = ppu.peek(addr + y_off + 8);
     for (int x_off = 0; x_off < 8; x_off++) {
-      bool lo      = lo_mem & (1u << (8 - x_off));
-      bool hi      = hi_mem & (1u << (8 - x_off));
+      bool lo      = lo_mem & (1u << (7 - x_off));
+      bool hi      = hi_mem & (1u << (7 - x_off));
       int  pix_idx = (pix_y + y_off) * pix_pitch + (pix_x + x_off);
       int  pal_idx = lo + (hi << 1);
       pix[pix_idx] = palette[pal_idx];
@@ -225,18 +225,36 @@ void PpuWindow::prepare_pt_tex() {
   SDL_UnlockTexture(pt_tex_.get());
 }
 
-static void extract_name_table(
-    Ppu &ppu, uint16_t base, Pixel *pix, int pix_pitch, int pix_x, int pix_y
-) {
-  Pixel pal[4] = {
-      PALETTE[0][0x0f], PALETTE[0][0x00], PALETTE[0][0x10], PALETTE[0][0x20]
-  };
+static void extract_bg_palette(Ppu &ppu, Pixel (*palette)[4]) {
+  for (int pal_idx = 0; pal_idx < 4; pal_idx++) {
+    for (int col_idx = 0; col_idx < 4; col_idx++) {
+      uint8_t mem               = col_idx == 0
+                                      ? ppu.peek(0x3f00)
+                                      : ppu.peek(0x3f00 + (uint16_t)(pal_idx * 4 + col_idx));
+      palette[pal_idx][col_idx] = PALETTE[0][mem & 63];
+    }
+  }
+}
 
+static void extract_name_table(
+    Ppu     &ppu,
+    uint16_t base,
+    Pixel   *pix,
+    int      pix_pitch,
+    int      pix_x,
+    int      pix_y,
+    int (*pal_idxs)[16]
+) {
+  Pixel pals[4][4];
+  extract_bg_palette(ppu, pals);
   assert(base == 0x2000 || base == 0x2400 || base == 0x2800 || base == 0x2c00);
   for (int nt_y = 0; nt_y < 30; nt_y++) {
     for (int nt_x = 0; nt_x < 32; nt_x++) {
       uint16_t addr    = (uint16_t)(base + nt_y * 32 + nt_x);
       uint8_t  pattern = ppu.peek(addr);
+      int      pal_x   = nt_x >> 1;
+      int      pal_y   = nt_y >> 1;
+      int      pal_idx = pal_idxs[pal_x][pal_y];
       extract_pattern(
           ppu,
           ppu.bg_pt_base_addr(),
@@ -245,22 +263,10 @@ static void extract_name_table(
           pix_pitch,
           pix_x + nt_x * 8,
           pix_y + nt_y * 8,
-          pal
+          pals[pal_idx]
       );
     }
   }
-}
-
-void PpuWindow::prepare_nt_tex() {
-  int    pitch;
-  Pixel *pixels;
-
-  SDL_LockTexture(nt_tex_.get(), nullptr, (void **)&pixels, &pitch);
-  extract_name_table(nes_.ppu(), 0x2000, pixels, pitch, 0, 0);
-  extract_name_table(nes_.ppu(), 0x2400, pixels, pitch, 256, 0);
-  extract_name_table(nes_.ppu(), 0x2800, pixels, pitch, 0, 240);
-  extract_name_table(nes_.ppu(), 0x2c00, pixels, pitch, 256, 240);
-  SDL_UnlockTexture(nt_tex_.get());
 }
 
 static void
@@ -283,17 +289,43 @@ extract_attr_table(Ppu &ppu, uint16_t base_addr, int (*palettes)[16]) {
   }
 }
 
+void PpuWindow::prepare_nt_tex() {
+  int    pitch;
+  Pixel *pixels;
+  int    pals[2][2][16][16];
+
+  extract_attr_table(nes_.ppu(), 0x23c0, pals[0][0]);
+  extract_attr_table(nes_.ppu(), 0x27c0, pals[1][0]);
+  extract_attr_table(nes_.ppu(), 0x2bc0, pals[0][1]);
+  extract_attr_table(nes_.ppu(), 0x2fc0, pals[1][1]);
+
+  SDL_LockTexture(nt_tex_.get(), nullptr, (void **)&pixels, &pitch);
+  extract_name_table(nes_.ppu(), 0x2000, pixels, pitch, 0, 0, pals[0][0]);
+  extract_name_table(nes_.ppu(), 0x2400, pixels, pitch, 256, 0, pals[1][0]);
+  extract_name_table(nes_.ppu(), 0x2800, pixels, pitch, 0, 240, pals[0][1]);
+  extract_name_table(nes_.ppu(), 0x2c00, pixels, pitch, 256, 240, pals[1][1]);
+  SDL_UnlockTexture(nt_tex_.get());
+}
+
 void PpuWindow::render_attr_table() {
   if (!ImGui::CollapsingHeader("Attribute Table")) {
     return;
   }
-  int palettes[16][16];
-  extract_attr_table(nes_.ppu(), 0x23c0, palettes);
-  for (int row = 0; row < 15; row++) {
-    char text[17] = {0};
-    for (int i = 0; i < 16; i++) {
-      text[i] = (char)(palettes[i][row] + '0');
+  int palettes[2][2][16][16];
+  extract_attr_table(nes_.ppu(), 0x23c0, palettes[0][0]);
+  extract_attr_table(nes_.ppu(), 0x27c0, palettes[1][0]);
+  extract_attr_table(nes_.ppu(), 0x2bc0, palettes[0][1]);
+  extract_attr_table(nes_.ppu(), 0x2fc0, palettes[1][1]);
+  for (int row0 = 0; row0 < 2; row0++) {
+    for (int row1 = 0; row1 < 15; row1++) {
+      char text[33] = {0};
+      for (int col0 = 0; col0 < 2; col0++) {
+        for (int col1 = 0; col1 < 16; col1++) {
+          text[col0 * 16 + col1] =
+              (char)(palettes[col0][row0][col1][row1] + '0');
+        }
+      }
+      ImGui::Text("%s", text);
     }
-    ImGui::Text("%s", text);
   }
 }

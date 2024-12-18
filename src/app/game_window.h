@@ -7,7 +7,7 @@ class GameWindow {
 public:
   GameWindow(Nes &nes, SDL_Renderer *renderer);
 
-  void render();
+  void render(bool show_tooltip);
 
 private:
   void prepare_frame();

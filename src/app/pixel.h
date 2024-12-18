@@ -4,6 +4,8 @@
 
 class Pixel {
 public:
+  constexpr Pixel() : bits_(0) {}
+
   constexpr Pixel(uint8_t a, uint8_t r, uint8_t g, uint8_t b)
       : bits_((uint32_t)(b | (g << 8) | (r << 16) | (a << 24))) {}
 

@@ -8,11 +8,13 @@
 #include "src/app/teeny_nes.h"
 
 TeenyNes::TeenyNes()
-    : window_("teeny-nes", 1024, 768),
+    : paused_(false),
+      show_ppu_window_(false),
+      show_xy_tooltip_(false),
+      window_("teeny-nes", 1024, 768),
       renderer_(window_.get()),
       imgui_(window_.get(), renderer_.get()),
       game_window_(nes_, renderer_.get()),
-      show_ppu_window_(true),
       ppu_window_(nes_, renderer_.get()) {
   nes_.input().set_controller(&keyboard_, 0);
   nes_.load_cart("mario.nes");
@@ -50,7 +52,10 @@ void TeenyNes::step() {
   auto elapsed = std::chrono::duration_cast<CpuCycles>(now - prev_ts_);
   int  cycles  = (int)std::min(elapsed.count(), max_cycles);
   prev_ts_     = now;
-  nes_.step(cycles);
+
+  if (!paused_) {
+    nes_.step(cycles);
+  }
 }
 
 void TeenyNes::render() {
@@ -87,12 +92,12 @@ void TeenyNes::render_imgui() {
   ImGui_ImplSDL2_NewFrame();
   ImGui::NewFrame();
 
-  ImGui::ShowDemoWindow();
+  // ImGui::ShowDemoWindow();
 
   render_imgui_menu();
 
   if (nes_.is_powered_up()) {
-    game_window_.render();
+    game_window_.render(show_xy_tooltip_);
   }
   if (show_ppu_window_) {
     ppu_window_.render();
@@ -104,6 +109,10 @@ void TeenyNes::render_imgui() {
 void TeenyNes::render_imgui_menu() {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("Debug")) {
+      ImGui::MenuItem("Pause", nullptr, &paused_, nes_.is_powered_up());
+      ImGui::MenuItem(
+          "Show X/Y Tooltip", nullptr, &show_xy_tooltip_, nes_.is_powered_up()
+      );
       ImGui::MenuItem(
           "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_up()
       );

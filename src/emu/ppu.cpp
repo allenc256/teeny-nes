@@ -384,7 +384,16 @@ uint8_t Ppu::bg_loop_fetch_at() {
   // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
   uint16_t addr = 0x23c0 | (regs_.v & 0x0c00) | ((regs_.v >> 4) & 0x38) |
                   ((regs_.v >> 2) & 0x07);
-  return peek(addr);
+  uint8_t at = peek(addr);
+
+  // See https://www.nesdev.org/wiki/PPU_attribute_tables
+  int y      = (get_bits<V_COARSE_Y>(regs_.v) >> 1) & 1;
+  int x      = (get_bits<V_COARSE_X>(regs_.v) >> 1) & 1;
+  int lo_idx = y * 4 + x * 2;
+  int hi_idx = lo_idx + 1;
+  int lo     = (at >> lo_idx) & 1;
+  int hi     = (at >> hi_idx) & 1;
+  return (uint8_t)(lo | (hi << 1));
 }
 
 uint8_t Ppu::bg_loop_fetch_pt_lo(uint8_t nt) {
@@ -430,15 +439,11 @@ void Ppu::bg_loop_reload_regs(uint8_t at, uint8_t pt_lo, uint8_t pt_hi) {
   set_bits<0x00ff>(regs_.shift_bg_lo, pt_lo);
   set_bits<0x00ff>(regs_.shift_bg_hi, pt_hi);
 
-  // See https://www.nesdev.org/wiki/PPU_attribute_tables
-  int     y      = (get_bits<V_COARSE_Y>(regs_.v) >> 1) & 1;
-  int     x      = (get_bits<V_COARSE_X>(regs_.v) >> 1) & 1;
-  int     lo_idx = y * 4 + x * 2;
-  int     hi_idx = lo_idx + 1;
-  uint8_t lo     = (uint8_t)((at >> lo_idx) & 1);
-  uint8_t hi     = (uint8_t)((at >> hi_idx) & 1);
-  uint8_t lo_x8  = ~(lo - 1);
-  uint8_t hi_x8  = ~(hi - 1);
+  assert(at >= 0 && at < 4);
+  uint8_t lo    = at & 1;
+  uint8_t hi    = at >> 1;
+  uint8_t lo_x8 = ~(lo - 1);
+  uint8_t hi_x8 = ~(hi - 1);
   // N.B., nesdev.org says that the lo/hi bits populate one bit latches which
   // then are shifted repeatedly. For simplicity, we just make the AT shift
   // registers 16 bits (instead of 8 bits) wide and set the incoming 8 bits

@@ -5,11 +5,26 @@
 #include "src/app/palette.h"
 #include "src/app/pixel.h"
 
+static constexpr float SCALE_X = 3.0f;
+static constexpr float SCALE_Y = 2.25f;
+
 GameWindow::GameWindow(Nes &nes, SDL_Renderer *renderer)
     : nes_(nes),
       frame_(renderer, 256, 240) {}
 
-void GameWindow::render() {
+static float clamp(float x, float min, float max) {
+  return std::min(std::max(x, min), max);
+}
+
+static void render_tooltip() {
+  ImVec2 item  = ImGui::GetItemRectMin();
+  ImVec2 mouse = ImGui::GetMousePos();
+  float  x     = clamp((mouse.x - item.x) / SCALE_X, 0, 255);
+  float  y     = clamp((mouse.y - item.y) / SCALE_Y, 0, 239);
+  ImGui::SetTooltip("x=%03.0f, y=%03.0f", x, y);
+}
+
+void GameWindow::render(bool show_tooltip) {
   if (!nes_.is_powered_up()) {
     assert(false);
     return;
@@ -17,7 +32,12 @@ void GameWindow::render() {
 
   if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     prepare_frame();
-    ImGui::Image((ImTextureID)frame_.get(), ImVec2(256 * 3, 240 * 2.25));
+    ImGui::Image(
+        (ImTextureID)frame_.get(), ImVec2(256 * SCALE_X, 240 * SCALE_Y)
+    );
+    if (show_tooltip && ImGui::IsItemHovered()) {
+      render_tooltip();
+    }
   }
   ImGui::End();
 }

@@ -27,12 +27,15 @@ private:
   Nes                nes_;
   KeyboardController keyboard_;
   Timestamp          prev_ts_;
+  bool               paused_;
+
+  bool show_ppu_window_;
+  bool show_xy_tooltip_;
 
   SDLRes         sdl_;
   SDLWindowRes   window_;
   SDLRendererRes renderer_;
   ImguiRes       imgui_;
   GameWindow     game_window_;
-  bool           show_ppu_window_;
   PpuWindow      ppu_window_;
 };
