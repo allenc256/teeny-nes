@@ -4,10 +4,10 @@
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_sdlrenderer2.h>
 
+#include "src/app/app_window.h"
 #include "src/app/palette.h"
-#include "src/app/teeny_nes.h"
 
-TeenyNes::TeenyNes()
+AppWindow::AppWindow()
     : paused_(false),
       show_ppu_window_(false),
       show_xy_tooltip_(false),
@@ -17,11 +17,11 @@ TeenyNes::TeenyNes()
       game_window_(nes_, renderer_.get()),
       ppu_window_(nes_, renderer_.get()) {
   nes_.input().set_controller(&keyboard_, 0);
-  nes_.load_cart("mario.nes");
+  nes_.load_cart("branch_timing_1.nes");
   nes_.power_up();
 }
 
-void TeenyNes::run() {
+void AppWindow::run() {
   prev_ts_ = std::chrono::high_resolution_clock::now();
   while (process_events()) {
     step();
@@ -29,7 +29,7 @@ void TeenyNes::run() {
   }
 }
 
-bool TeenyNes::process_events() {
+bool AppWindow::process_events() {
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
     ImGui_ImplSDL2_ProcessEvent(&event);
@@ -43,7 +43,7 @@ bool TeenyNes::process_events() {
   return true;
 }
 
-void TeenyNes::step() {
+void AppWindow::step() {
   static constexpr int64_t cpu_hz     = 1789773;
   static constexpr int64_t max_cycles = cpu_hz / 10;
   using CpuCycles = std::chrono::duration<int64_t, std::ratio<1, cpu_hz>>;
@@ -58,7 +58,7 @@ void TeenyNes::step() {
   }
 }
 
-void TeenyNes::render() {
+void AppWindow::render() {
   if (SDL_GetWindowFlags(window_.get()) & SDL_WINDOW_MINIMIZED) {
     SDL_Delay(10);
     return;
@@ -87,7 +87,7 @@ void TeenyNes::render() {
   SDL_RenderPresent(renderer_.get());
 }
 
-void TeenyNes::render_imgui() {
+void AppWindow::render_imgui() {
   ImGui_ImplSDLRenderer2_NewFrame();
   ImGui_ImplSDL2_NewFrame();
   ImGui::NewFrame();
@@ -106,7 +106,7 @@ void TeenyNes::render_imgui() {
   ImGui::Render();
 }
 
-void TeenyNes::render_imgui_menu() {
+void AppWindow::render_imgui_menu() {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("Debug")) {
       ImGui::MenuItem("Pause", nullptr, &paused_, nes_.is_powered_up());
@@ -120,10 +120,4 @@ void TeenyNes::render_imgui_menu() {
     }
     ImGui::EndMainMenuBar();
   }
-}
-
-int main() {
-  TeenyNes teeny_nes;
-  teeny_nes.run();
-  return 0;
 }

@@ -1,6 +1,7 @@
 #include <cassert>
 #include <format>
 #include <fstream>
+#include <iostream>
 
 #include "src/emu/cart.h"
 
@@ -24,6 +25,7 @@ public:
   }
 
   bool    has_trainer() const { return bytes_[6] & FLAGS_6_TRAINER; }
+  bool    has_prg_ram() const { return bytes_[6] & FLAGS_6_PRG_RAM; }
   uint8_t prg_rom_size() const { return bytes_[4]; }
   uint8_t chr_rom_size() const { return bytes_[5]; }
 
@@ -47,6 +49,17 @@ private:
   static constexpr uint8_t TAG[4] = {0x4e, 0x45, 0x53, 0x1a};
   static constexpr int     SIZE   = 16;
 
+  // Flags 6
+  // =======
+  //
+  // 76543210
+  // ||||||||
+  // |||||||+- Nametable arrangement: 0: vertical
+  // |||||||                          1: horizontal
+  // ||||||+-- 1: Cartridge contains battery-backed PRG RAM ($6000-7FFF)
+  // |||||+--- 1: 512-byte trainer at $7000-$71FF (stored before PRG data)
+  // ||||+---- 1: Alternative nametable layout
+  // ++++----- Lower nybble of mapper number
   static constexpr uint8_t FLAGS_6_MIRROR_VERT = 0b00000001;
   static constexpr uint8_t FLAGS_6_PRG_RAM     = 0b00000010;
   static constexpr uint8_t FLAGS_6_TRAINER     = 0b00000100;
@@ -57,13 +70,13 @@ private:
 
 class NRom : public Cart {
 public:
-  NRom() : prg_mem_{0} {}
+  NRom() : prg_ram_{0} {}
 
   void read(std::ifstream &is, const Header &header) {
     if (header.prg_rom_size() == 1) {
-      prg_mem_mask_ = PRG_ROM_MASK_128;
+      prg_rom_mask_ = PRG_ROM_MASK_128;
     } else if (header.prg_rom_size() == 2) {
-      prg_mem_mask_ = PRG_ROM_MASK_256;
+      prg_rom_mask_ = PRG_ROM_MASK_256;
     } else {
       throw std::runtime_error(
           std::format("bad PRG ROM size: {}", header.prg_rom_size())
@@ -80,8 +93,10 @@ public:
       );
     }
 
+    prg_ram_enabled_ = header.has_prg_ram();
+
     size_t prg_rom_bytes = header.prg_rom_size() * 16 * 1024;
-    if (!is.read((char *)prg_mem_, prg_rom_bytes)) {
+    if (!is.read((char *)prg_rom_, prg_rom_bytes)) {
       throw std::runtime_error("failed to read PRG ROM");
     }
 
@@ -101,15 +116,22 @@ public:
   uint8_t peek_cpu(uint16_t addr) override {
     assert(addr >= CPU_ADDR_START);
     if (addr & PRG_ROM_BIT) {
-      return prg_mem_[addr & prg_mem_mask_];
+      return prg_rom_[addr & prg_rom_mask_];
     } else {
       return 0;
     }
   }
 
-  void poke_cpu([[maybe_unused]] uint16_t addr, [[maybe_unused]] uint8_t x)
-      override {
-    throw std::runtime_error("cannot write to ROM");
+  void poke_cpu(uint16_t addr, uint8_t x) override {
+    if (prg_ram_enabled_ && addr >= 0x6000 && addr <= 0x7fff) {
+      prg_ram_[addr - 0x6000] = x;
+    } else {
+      std::cerr << std::format(
+          "WARNING: ignoring attempted write by CPU to read-only memory: "
+          "${:04x}\n",
+          addr
+      );
+    }
   }
 
   PeekPpu peek_ppu(uint16_t addr) override {
@@ -127,13 +149,15 @@ public:
     assert(addr < UNUSED_END);
     if (addr < PATTERN_TABLE_END) {
       if (chr_mem_readonly_) {
-        throw std::runtime_error(
-            std::format("cannot write to CHR ROM: ${:04x}", addr)
+        std::cerr << std::format(
+            "WARNING: ignoring attempted write by PPU to read-only memory: "
+            "${:04x}\n",
+            addr
         );
       } else {
         chr_mem_[addr] = x;
-        return PokePpu::make_success();
       }
+      return PokePpu::make_success();
     } else if (addr < NAME_TABLE_END) {
       return PokePpu::make_address(map_name_table_addr(addr));
     } else {
@@ -161,10 +185,12 @@ private:
   static constexpr uint16_t MIRROR_HORZ_NT_MASK  = 0x800;
   static constexpr uint16_t MIRROR_VERT_MASK     = 0x7ff;
 
-  uint8_t   prg_mem_[32 * 1024];
+  uint8_t   prg_rom_[32 * 1024];
+  uint8_t   prg_ram_[8 * 1024];
   uint8_t   chr_mem_[8 * 1024];
+  bool      prg_ram_enabled_;
   bool      chr_mem_readonly_;
-  uint16_t  prg_mem_mask_;
+  uint16_t  prg_rom_mask_;
   Mirroring mirroring_;
 };
 

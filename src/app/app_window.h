@@ -9,9 +9,9 @@
 #include "src/app/sdl.h"
 #include "src/emu/nes.h"
 
-class TeenyNes {
+class AppWindow {
 public:
-  TeenyNes();
+  AppWindow();
 
   void run();
 
