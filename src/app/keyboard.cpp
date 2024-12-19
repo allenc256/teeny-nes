@@ -3,8 +3,8 @@
 #include "src/app/keyboard.h"
 
 static constexpr SDL_Scancode KEYMAP[] = {
-    SDL_SCANCODE_A,
     SDL_SCANCODE_S,
+    SDL_SCANCODE_A,
     SDL_SCANCODE_Q,
     SDL_SCANCODE_W,
     SDL_SCANCODE_UP,

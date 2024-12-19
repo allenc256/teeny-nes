@@ -351,7 +351,10 @@ void Ppu::draw_dot() {
     uint8_t bg_hi  = (regs_.shift_bg_hi >> (15 - regs_.x)) & 1;
     int     bg_pat = bg_lo | (bg_hi << 1);
     if (bg_pat) {
-      if (spr0_rendered) {
+      // Sprite 0 hit cannot happen on x = 255 for obscure reasons.
+      // See https://www.nesdev.org/wiki/PPU_OAM#Sprite_0_hits
+      if (spr0_rendered && x != 255) {
+        // TODO: nesdev says sprite 0 hit cannot happen on x=0..7 if clipping
         regs_.PPUSTATUS |= PPUSTATUS_SPR0_HIT;
       }
       if (spr_behind || pat == 0) {
@@ -626,12 +629,16 @@ Coroutine Ppu::spr_loop() {
     assert(dot_ == 65);
     bool spr_size_8x16 = regs_.PPUCTRL & PPUCTRL_SPR_SIZE;
     int  spr_height    = spr_size_8x16 ? 16 : 8;
+    bool spr0_enabled  = false;
     for (int i = 0, soam_index = 0; i < 256; i += 4) {
       uint8_t y = oam_[i];
       SPRITE_LOOP_SUSPEND();
       soam_[soam_index] = y;
       SPRITE_LOOP_SUSPEND();
       if (spr_y_in_range(y, scanline_, spr_height)) {
+        if (i == 0) {
+          spr0_enabled = true;
+        }
         unsigned char tmp = oam_[i + 1];
         SPRITE_LOOP_SUSPEND();
         soam_[++soam_index] = tmp;
@@ -684,7 +691,8 @@ Coroutine Ppu::spr_loop() {
         uint8_t pt_hi = peek(addr + 8);
         SPRITE_LOOP_SUSPEND();
         SPRITE_LOOP_SUSPEND();
-        spr_loop_render(x, attr, pt_lo, pt_hi, soam_index == 0);
+        bool spr0 = spr0_enabled && soam_index == 0;
+        spr_loop_render(x, attr, pt_lo, pt_hi, spr0);
       } else {
         for (int i = 0; i < 4; i++) {
           SPRITE_LOOP_SUSPEND();
