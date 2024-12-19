@@ -57,32 +57,36 @@ private:
 
 class NRom : public Cart {
 public:
-  NRom() : prg_rom_{0} {}
+  NRom() : prg_mem_{0} {}
 
   void read(std::ifstream &is, const Header &header) {
     if (header.prg_rom_size() == 1) {
-      prg_rom_mask_ = PRG_ROM_MASK_128;
+      prg_mem_mask_ = PRG_ROM_MASK_128;
     } else if (header.prg_rom_size() == 2) {
-      prg_rom_mask_ = PRG_ROM_MASK_256;
+      prg_mem_mask_ = PRG_ROM_MASK_256;
     } else {
       throw std::runtime_error(
           std::format("bad PRG ROM size: {}", header.prg_rom_size())
       );
     }
 
-    if (header.chr_rom_size() != 1) {
+    if (header.chr_rom_size() == 0) {
+      chr_mem_readonly_ = false;
+    } else if (header.chr_rom_size() == 1) {
+      chr_mem_readonly_ = true;
+    } else {
       throw std::runtime_error(
           std::format("bad CHR ROM size: {}", header.chr_rom_size())
       );
     }
 
     size_t prg_rom_bytes = header.prg_rom_size() * 16 * 1024;
-    if (!is.read((char *)prg_rom_, prg_rom_bytes)) {
+    if (!is.read((char *)prg_mem_, prg_rom_bytes)) {
       throw std::runtime_error("failed to read PRG ROM");
     }
 
     size_t chr_rom_bytes = header.chr_rom_size() * 8 * 1024;
-    if (!is.read((char *)chr_rom_, chr_rom_bytes)) {
+    if (!is.read((char *)chr_mem_, chr_rom_bytes)) {
       throw std::runtime_error("failed to read CHR ROM");
     }
 
@@ -97,7 +101,7 @@ public:
   uint8_t peek_cpu(uint16_t addr) override {
     assert(addr >= CPU_ADDR_START);
     if (addr & PRG_ROM_BIT) {
-      return prg_rom_[addr & prg_rom_mask_];
+      return prg_mem_[addr & prg_mem_mask_];
     } else {
       return 0;
     }
@@ -111,7 +115,7 @@ public:
   PeekPpu peek_ppu(uint16_t addr) override {
     assert(addr < UNUSED_END);
     if (addr < PATTERN_TABLE_END) {
-      return PeekPpu::make_value(chr_rom_[addr]);
+      return PeekPpu::make_value(chr_mem_[addr]);
     } else if (addr < NAME_TABLE_END) {
       return PeekPpu::make_address(map_name_table_addr(addr));
     } else {
@@ -119,12 +123,17 @@ public:
     }
   }
 
-  PokePpu poke_ppu(uint16_t addr, [[maybe_unused]] uint8_t x) override {
+  PokePpu poke_ppu(uint16_t addr, uint8_t x) override {
     assert(addr < UNUSED_END);
     if (addr < PATTERN_TABLE_END) {
-      throw std::runtime_error(
-          std::format("cannot write to CHR ROM at ${:04x}", addr)
-      );
+      if (chr_mem_readonly_) {
+        throw std::runtime_error(
+            std::format("cannot write to CHR ROM: ${:04x}", addr)
+        );
+      } else {
+        chr_mem_[addr] = x;
+        return PokePpu::make_success();
+      }
     } else if (addr < NAME_TABLE_END) {
       return PokePpu::make_address(map_name_table_addr(addr));
     } else {
@@ -152,9 +161,10 @@ private:
   static constexpr uint16_t MIRROR_HORZ_NT_MASK  = 0x800;
   static constexpr uint16_t MIRROR_VERT_MASK     = 0x7ff;
 
-  uint8_t   prg_rom_[32 * 1024];
-  uint8_t   chr_rom_[8 * 1024];
-  uint16_t  prg_rom_mask_;
+  uint8_t   prg_mem_[32 * 1024];
+  uint8_t   chr_mem_[8 * 1024];
+  bool      chr_mem_readonly_;
+  uint16_t  prg_mem_mask_;
   Mirroring mirroring_;
 };
 
