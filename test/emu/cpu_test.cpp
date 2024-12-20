@@ -10,6 +10,7 @@
 #include "src/emu/apu.h"
 #include "src/emu/cart.h"
 #include "src/emu/cpu.h"
+#include "src/emu/ppu.h"
 
 static bool compare_log_lines(const std::string &exp, const std::string &act) {
   if (exp.size() != act.size()) {
@@ -28,11 +29,13 @@ TEST(Cpu, nestest) {
   auto          cart = read_cart(is);
   Apu           apu;
   Cpu           cpu;
+  Ppu           ppu;
 
   std::ifstream log("test_data/nestest.log");
 
   cpu.set_cart(cart.get());
   cpu.set_apu(&apu);
+  cpu.set_ppu(&ppu);
   cpu.power_up();
   cpu.registers().PC = 0xc000;
 

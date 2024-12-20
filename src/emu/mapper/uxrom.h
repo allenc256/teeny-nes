@@ -2,9 +2,9 @@
 
 #include "src/emu/cart.h"
 
-class NRom : public Cart {
+class UxRom : public Cart {
 public:
-  NRom(const Header &header, Memory &&mem);
+  UxRom(const Header &header, Memory &&mem);
 
   uint8_t peek_cpu(uint16_t addr) override;
   void    poke_cpu(uint16_t addr, uint8_t x) override;
@@ -13,6 +13,7 @@ public:
 
 private:
   Memory    mem_;
-  uint16_t  prg_rom_mask_;
   Mirroring mirroring_;
+  int       curr_bank_;
+  int       total_banks_;
 };

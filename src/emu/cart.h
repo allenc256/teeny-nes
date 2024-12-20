@@ -65,6 +65,34 @@ public:
     uint16_t bits_;
   };
 
+  enum Mirroring { MIRROR_VERT, MIRROR_HORZ };
+
+  class Header {
+  public:
+    Header(uint8_t bytes[16]);
+
+    bool      has_trainer() const;
+    bool      has_prg_ram() const;
+    uint8_t   prg_rom_chunks() const;
+    uint8_t   chr_rom_chunks() const;
+    bool      chr_rom_readonly() const;
+    Mirroring mirroring() const;
+    uint8_t   mapper() const;
+
+  private:
+    uint8_t bytes_[16];
+  };
+
+  struct Memory {
+    std::unique_ptr<uint8_t[]> prg_rom;
+    std::unique_ptr<uint8_t[]> chr_rom;
+    std::unique_ptr<uint8_t[]> prg_ram;
+    int                        prg_rom_size;
+    int                        chr_rom_size;
+    int                        prg_ram_size;
+    bool                       chr_rom_readonly;
+  };
+
   virtual ~Cart() = default;
 
   virtual uint8_t peek_cpu(uint16_t addr)            = 0;
@@ -72,23 +100,9 @@ public:
 
   virtual PeekPpu peek_ppu(uint16_t addr)            = 0;
   virtual PokePpu poke_ppu(uint16_t addr, uint8_t x) = 0;
-};
 
-enum Mirroring { MIRROR_VERT, MIRROR_HORZ, MIRROR_ALT };
-
-class INesHeader {
-public:
-  void      read(std::ifstream &is);
-  bool      is_nes20_format() const;
-  bool      has_trainer() const;
-  bool      has_prg_ram() const;
-  uint8_t   prg_rom_size() const;
-  uint8_t   chr_rom_size() const;
-  Mirroring mirroring() const;
-  uint8_t   mapper() const;
-
-private:
-  uint8_t bytes_[16];
+protected:
+  static uint16_t mirrored_nt_addr(Mirroring mirroring, uint16_t addr);
 };
 
 std::unique_ptr<Cart> read_cart(std::ifstream &is);

@@ -5,75 +5,51 @@
 
 #include "src/emu/mapper/nrom.h"
 
-NRom::NRom() : prg_ram_{0} {}
+static constexpr uint16_t PRG_ROM_MASK_128  = 0b0011111111111111;
+static constexpr uint16_t PRG_ROM_MASK_256  = 0b0111111111111111;
+static constexpr uint16_t PATTERN_TABLE_END = 0x2000;
+static constexpr uint16_t NAME_TABLE_END    = 0x3000;
+static constexpr uint16_t UNUSED_END        = 0x3f00;
 
-void NRom::read(std::ifstream &is, const INesHeader &header) {
-  if (header.prg_rom_size() == 1) {
+NRom::NRom(const Header &header, Memory &&mem)
+    : mem_(std::move(mem)),
+      mirroring_(header.mirroring()) {
+  if (header.prg_rom_chunks() == 1) {
     prg_rom_mask_ = PRG_ROM_MASK_128;
-  } else if (header.prg_rom_size() == 2) {
+  } else if (header.prg_rom_chunks() == 2) {
     prg_rom_mask_ = PRG_ROM_MASK_256;
   } else {
     throw std::runtime_error(
-        std::format("bad PRG ROM size: {}", header.prg_rom_size())
+        std::format("bad PRG ROM size: {}", header.prg_rom_chunks())
     );
-  }
-
-  if (header.chr_rom_size() == 0) {
-    chr_mem_readonly_ = false;
-  } else if (header.chr_rom_size() == 1) {
-    chr_mem_readonly_ = true;
-  } else {
-    throw std::runtime_error(
-        std::format("bad CHR ROM size: {}", header.chr_rom_size())
-    );
-  }
-
-  prg_ram_enabled_ = header.has_prg_ram();
-
-  size_t prg_rom_bytes = header.prg_rom_size() * 16 * 1024;
-  if (!is.read((char *)prg_rom_, prg_rom_bytes)) {
-    throw std::runtime_error("failed to read PRG ROM");
-  }
-
-  size_t chr_rom_bytes = header.chr_rom_size() * 8 * 1024;
-  if (!is.read((char *)chr_mem_, chr_rom_bytes)) {
-    throw std::runtime_error("failed to read CHR ROM");
-  }
-
-  if (header.mirroring() == MIRROR_HORZ || header.mirroring() == MIRROR_VERT) {
-    mirroring_ = header.mirroring();
-  } else {
-    throw std::runtime_error("bad mirroring type");
   }
 }
 
 uint8_t NRom::peek_cpu(uint16_t addr) {
   assert(addr >= CPU_ADDR_START);
-  if (addr & PRG_ROM_BIT) {
-    return prg_rom_[addr & prg_rom_mask_];
+  if (addr >= 0x8000) {
+    return mem_.prg_rom[addr & prg_rom_mask_];
+  } else if (addr >= 0x6000 && mem_.prg_ram) {
+    return mem_.prg_ram[addr - 0x6000];
   } else {
     return 0;
   }
 }
 
 void NRom::poke_cpu(uint16_t addr, uint8_t x) {
-  if (prg_ram_enabled_ && addr >= 0x6000 && addr <= 0x7fff) {
-    prg_ram_[addr - 0x6000] = x;
+  if (mem_.prg_ram && addr >= 0x6000 && addr <= 0x7fff) {
+    mem_.prg_ram[addr - 0x6000] = x;
   } else {
-    std::cerr << std::format(
-        "WARNING: ignoring attempted write by CPU to read-only memory: "
-        "${:04x}\n",
-        addr
-    );
+    // no-op
   }
 }
 
 NRom::PeekPpu NRom::peek_ppu(uint16_t addr) {
   assert(addr < UNUSED_END);
   if (addr < PATTERN_TABLE_END) {
-    return PeekPpu::make_value(chr_mem_[addr]);
+    return PeekPpu::make_value(mem_.chr_rom[addr]);
   } else if (addr < NAME_TABLE_END) {
-    return PeekPpu::make_address(map_name_table_addr(addr));
+    return PeekPpu::make_address(mirrored_nt_addr(mirroring_, addr));
   } else {
     return PeekPpu::make_value(0); // unused
   }
@@ -82,27 +58,16 @@ NRom::PeekPpu NRom::peek_ppu(uint16_t addr) {
 NRom::PokePpu NRom::poke_ppu(uint16_t addr, uint8_t x) {
   assert(addr < UNUSED_END);
   if (addr < PATTERN_TABLE_END) {
-    if (chr_mem_readonly_) {
-      std::cerr << std::format(
-          "WARNING: ignoring attempted write by PPU to read-only memory: "
-          "${:04x}\n",
-          addr
-      );
+    if (mem_.chr_rom_readonly) {
+      // N.B., some games (e.g., 1942) explicitly contain writes to the CHR ROM
+      // region as a form of copy-protection. These should be treated as no-ops.
     } else {
-      chr_mem_[addr] = x;
+      mem_.chr_rom[addr] = x;
     }
     return PokePpu::make_success();
   } else if (addr < NAME_TABLE_END) {
-    return PokePpu::make_address(map_name_table_addr(addr));
+    return PokePpu::make_address(mirrored_nt_addr(mirroring_, addr));
   } else {
     return PokePpu::make_success(); // no-op
-  }
-}
-
-uint16_t NRom::map_name_table_addr(uint16_t addr) {
-  if (mirroring_ == MIRROR_HORZ) {
-    return (addr & MIRROR_HORZ_OFF_MASK) | ((addr & MIRROR_HORZ_NT_MASK) >> 1);
-  } else {
-    return addr & MIRROR_VERT_MASK;
   }
 }

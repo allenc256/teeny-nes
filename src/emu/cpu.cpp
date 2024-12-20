@@ -58,6 +58,8 @@ static constexpr std::array<Cpu::OpCode, 256> init_op_codes() {
 
   op_code[0x10] = {0x10, BPL, RELATIVE, 2, 2};
 
+  op_code[0x00] = {0x00, BRK, IMPLICIT, 2, 7};
+
   op_code[0x50] = {0x50, BVC, RELATIVE, 2, 2};
 
   op_code[0x70] = {0x70, BVS, RELATIVE, 2, 2};
@@ -360,14 +362,15 @@ Cpu::Cpu()
       test_ram_(nullptr) {}
 
 void Cpu::power_up() {
-  regs_.A      = 0;
-  regs_.X      = 0;
-  regs_.Y      = 0;
-  regs_.PC     = peek16(RESET_VECTOR);
-  regs_.S      = 0xfd;
-  regs_.P      = I_FLAG | DUMMY_FLAG;
-  nmi_pending_ = false;
-  cycles_      = RESET_CYCLES;
+  regs_.A          = 0;
+  regs_.X          = 0;
+  regs_.Y          = 0;
+  regs_.PC         = peek16(RESET_VECTOR);
+  regs_.S          = 0xfd;
+  regs_.P          = I_FLAG | DUMMY_FLAG;
+  nmi_pending_     = false;
+  oam_dma_pending_ = false;
+  cycles_          = RESET_CYCLES;
   std::memset(ram_, 0, sizeof(ram_));
 }
 
@@ -375,8 +378,9 @@ void Cpu::reset() {
   regs_.PC = peek16(RESET_VECTOR);
   regs_.S -= 3;
   regs_.P |= I_FLAG;
-  nmi_pending_ = false;
-  cycles_      = RESET_CYCLES;
+  nmi_pending_     = false;
+  oam_dma_pending_ = false;
+  cycles_          = RESET_CYCLES;
 }
 
 uint8_t Cpu::peek(uint16_t addr) {
@@ -384,15 +388,8 @@ uint8_t Cpu::peek(uint16_t addr) {
     return test_ram_[addr];
   } else if (addr < RAM_END) {
     return ram_[addr & RAM_MASK];
-  } else if (addr >= Cart::CPU_ADDR_START) {
-    return cart_->peek_cpu(addr);
-  } else if (addr >= APU_CHAN_START && addr < APU_CHAN_END) {
-    return 0; // TODO: implement APU
-  } else {
-    switch (addr) {
-    case IO_JOY1: return input_->read_controller(0);
-    case IO_JOY2: return input_->read_controller(1);
-    case APU_STATUS: return 0; // TODO: implement APU_STATUS
+  } else if (addr < PPU_REGS_END) {
+    switch (addr & 0x2007) {
     case PPU_PPUCTRL: return ppu_->read_PPUCTRL();
     case PPU_PPUMASK: return ppu_->read_PPUMASK();
     case PPU_PPUSTATUS: return ppu_->read_PPUSTATUS();
@@ -401,6 +398,17 @@ uint8_t Cpu::peek(uint16_t addr) {
     case PPU_PPUSCROLL: return ppu_->read_PPUSCROLL();
     case PPU_PPUADDR: return ppu_->read_PPUADDR();
     case PPU_PPUDATA: return ppu_->read_PPUDATA();
+    default: throw std::runtime_error("unreachable");
+    }
+  } else if (addr < APU_CHAN_END) {
+    return 0; // TODO: implement APU
+  } else if (addr >= Cart::CPU_ADDR_START) {
+    return cart_->peek_cpu(addr);
+  } else {
+    switch (addr) {
+    case IO_JOY1: return input_->read_controller(0);
+    case IO_JOY2: return input_->read_controller(1);
+    case APU_STATUS: return 0; // TODO: implement APU_STATUS
     case PPU_OAMDMA: return ppu_->read_OAMDMA();
     default:
       throw std::runtime_error(
@@ -421,15 +429,8 @@ void Cpu::poke(uint16_t addr, uint8_t x) {
     test_ram_[addr] = x;
   } else if (addr < RAM_END) {
     ram_[addr & RAM_MASK] = x;
-  } else if (addr >= Cart::CPU_ADDR_START) {
-    cart_->poke_cpu(addr, x);
-  } else if (addr >= APU_CHAN_START && addr < APU_CHAN_END) {
-    // TODO: implement APU
-  } else {
-    switch (addr) {
-    case IO_JOY1: input_->write_controller(x);
-    case IO_JOY2: break;    // TODO: implement APU
-    case APU_STATUS: break; // TODO: implement APU
+  } else if (addr < PPU_REGS_END) {
+    switch (addr & 0x2007) {
     case PPU_PPUCTRL: ppu_->write_PPUCTRL(x); break;
     case PPU_PPUMASK: ppu_->write_PPUMASK(x); break;
     case PPU_PPUSTATUS: ppu_->write_PPUSTATUS(x); break;
@@ -438,6 +439,17 @@ void Cpu::poke(uint16_t addr, uint8_t x) {
     case PPU_PPUSCROLL: ppu_->write_PPUSCROLL(x); break;
     case PPU_PPUADDR: ppu_->write_PPUADDR(x); break;
     case PPU_PPUDATA: ppu_->write_PPUDATA(x); break;
+    default: throw std::runtime_error("unreachable");
+    }
+  } else if (addr < APU_CHAN_END) {
+    // TODO: implement APU
+  } else if (addr >= Cart::CPU_ADDR_START) {
+    cart_->poke_cpu(addr, x);
+  } else {
+    switch (addr) {
+    case IO_JOY1: input_->write_controller(x);
+    case IO_JOY2: break;    // TODO: implement APU
+    case APU_STATUS: break; // TODO: implement APU
     case PPU_OAMDMA: {
       ppu_->write_OAMDMA(x);
       oam_dma_pending_ = true;
@@ -506,6 +518,7 @@ void Cpu::step() {
   case BMI: step_BMI(op); break;
   case BNE: step_BNE(op); break;
   case BPL: step_BPL(op); break;
+  case BRK: step_BRK(op); break;
   case BVC: step_BVC(op); break;
   case BVS: step_BVS(op); break;
   case CLC: step_CLC(op); break;
@@ -700,6 +713,14 @@ void Cpu::step_BIT(const OpCode &op) {
 void Cpu::step_BMI(const OpCode &op) { step_branch(op, regs_.P & N_FLAG); }
 void Cpu::step_BNE(const OpCode &op) { step_branch(op, !(regs_.P & Z_FLAG)); }
 void Cpu::step_BPL(const OpCode &op) { step_branch(op, !(regs_.P & N_FLAG)); }
+
+void Cpu::step_BRK([[maybe_unused]] const OpCode &op) {
+  push16(regs_.PC + 2);
+  push(regs_.P | 0b00110000);
+  regs_.PC = peek16(IRQ_VECTOR);
+  regs_.P |= I_FLAG;
+  jump_ = true;
+}
 
 void Cpu::step_BVC(const OpCode &op) { step_branch(op, !(regs_.P & V_FLAG)); }
 void Cpu::step_BVS(const OpCode &op) { step_branch(op, regs_.P & V_FLAG); }

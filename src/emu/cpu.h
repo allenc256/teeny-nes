@@ -179,6 +179,7 @@ private:
   void step_BMI(const OpCode &op);
   void step_BNE(const OpCode &op);
   void step_BPL(const OpCode &op);
+  void step_BRK(const OpCode &op);
   void step_BVC(const OpCode &op);
   void step_BVS(const OpCode &op);
   void step_CLC(const OpCode &op);
@@ -261,10 +262,7 @@ private:
   static constexpr int      RESET_CYCLES = 7;
   static constexpr uint16_t NMI_VECTOR   = 0xfffa;
   static constexpr int      NMI_CYCLES   = 7;
-
-  static constexpr uint16_t APU_CHAN_START = 0x4000;
-  static constexpr uint16_t APU_CHAN_END   = 0x4014;
-  static constexpr uint16_t APU_STATUS     = 0x4015;
+  static constexpr uint16_t IRQ_VECTOR   = 0xfffe;
 
   static constexpr uint16_t PPU_PPUCTRL   = 0x2000;
   static constexpr uint16_t PPU_PPUMASK   = 0x2001;
@@ -274,7 +272,11 @@ private:
   static constexpr uint16_t PPU_PPUSCROLL = 0x2005;
   static constexpr uint16_t PPU_PPUADDR   = 0x2006;
   static constexpr uint16_t PPU_PPUDATA   = 0x2007;
+  static constexpr uint16_t PPU_REGS_END  = 0x4000;
   static constexpr uint16_t PPU_OAMDMA    = 0x4014;
+
+  static constexpr uint16_t APU_CHAN_END = 0x4014;
+  static constexpr uint16_t APU_STATUS   = 0x4015;
 
   static constexpr uint16_t IO_JOY1 = 0x4016;
   static constexpr uint16_t IO_JOY2 = 0x4017;
