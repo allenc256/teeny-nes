@@ -286,13 +286,6 @@ void Ppu::step_pre_render_scanline() {
 }
 
 void Ppu::step_post_render_scanline() {
-  if (dot_ == 0 && scanline_ == 240) {
-    frames_++;
-    back_frame_.swap(front_frame_);
-    // TODO: is this too early to set the ready flag?
-    ready_ = true;
-  }
-
   if (scanline_ == 241 && dot_ == 1) {
     regs_.PPUSTATUS |= PPUSTATUS_VBLANK;
     if (regs_.PPUCTRL & PPUCTRL_NMI_ENABLE) {
@@ -316,6 +309,12 @@ void Ppu::next_dot() {
   // Dot overflow -> increment scanline.
   dot_ = 0;
   scanline_++;
+  if (scanline_ == VISIBLE_FRAME_END) {
+    frames_++;
+    back_frame_.swap(front_frame_);
+    // TODO: this might be too early for marking the PPU ready
+    ready_ = true;
+  }
   if (scanline_ <= PRE_RENDER_SCANLINE) {
     return;
   }
