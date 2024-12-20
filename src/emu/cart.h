@@ -74,4 +74,21 @@ public:
   virtual PokePpu poke_ppu(uint16_t addr, uint8_t x) = 0;
 };
 
+enum Mirroring { MIRROR_VERT, MIRROR_HORZ, MIRROR_ALT };
+
+class INesHeader {
+public:
+  void      read(std::ifstream &is);
+  bool      is_nes20_format() const;
+  bool      has_trainer() const;
+  bool      has_prg_ram() const;
+  uint8_t   prg_rom_size() const;
+  uint8_t   chr_rom_size() const;
+  Mirroring mirroring() const;
+  uint8_t   mapper() const;
+
+private:
+  uint8_t bytes_[16];
+};
+
 std::unique_ptr<Cart> read_cart(std::ifstream &is);
