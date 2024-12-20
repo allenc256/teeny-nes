@@ -312,6 +312,7 @@ void Ppu::next_dot() {
   if (scanline_ == VISIBLE_FRAME_END) {
     frames_++;
     back_frame_.swap(front_frame_);
+    spr_buf_.clear();
     // TODO: this might be too early for marking the PPU ready
     ready_ = true;
   }
