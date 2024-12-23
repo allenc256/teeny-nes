@@ -44,8 +44,12 @@ public:
   Ppu();
 
   void set_cpu(Cpu *cpu) { cpu_ = cpu; }
-  void set_cart(Cart *cart) { cart_ = cart; }
   void set_ready(bool ready) { ready_ = ready; }
+
+  void set_cart(Cart *cart) {
+    cart_      = cart;
+    step_cart_ = true;
+  }
 
   Registers     &registers() { return regs_; }
   int            scanline() const { return scanline_; }
@@ -54,6 +58,7 @@ public:
   int64_t        frames() const { return frames_; }
   bool           ready() const { return ready_; }
   const uint8_t *frame() const { return front_frame_.get(); }
+  uint16_t       addr_bus() const { return addr_bus_; }
 
   bool     rendering() const;
   bool     bg_rendering() const;
@@ -219,6 +224,7 @@ private:
   uint8_t   palette_[32];
   uint8_t   oam_[256];
   uint8_t   soam_[32];
+  uint16_t  addr_bus_;
   SpriteBuf spr_buf_;
   Cart     *cart_;
   Cpu      *cpu_;
@@ -228,6 +234,7 @@ private:
   Frame     front_frame_;
   int64_t   cycles_; // since reset
   int64_t   frames_; // since reset
+  bool      step_cart_;
 
   // Readiness for writes. This is a separate flag rather than just checking the
   // cycle or frame count so that we can force it to true in tests.

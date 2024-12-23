@@ -55,6 +55,7 @@ void Ppu::power_up() {
   regs_.shift_bg_hi = 0;
   regs_.shift_at_lo = 0;
   regs_.shift_at_hi = 0;
+  addr_bus_         = 0;
   scanline_         = PRE_RENDER_SCANLINE;
   dot_              = 0;
   cycles_           = 0;
@@ -81,6 +82,7 @@ void Ppu::reset() {
   regs_.shift_bg_hi = 0;
   regs_.shift_at_lo = 0;
   regs_.shift_at_hi = 0;
+  addr_bus_         = 0;
   scanline_         = PRE_RENDER_SCANLINE;
   dot_              = 0;
   cycles_           = 0;
@@ -264,6 +266,14 @@ void Ppu::step() {
     step_post_render_scanline();
   }
 
+  if (!rendering() || regs_.PPUSTATUS & PPUSTATUS_VBLANK) {
+    addr_bus_ = regs_.v;
+  }
+
+  if (step_cart_) {
+    step_cart_ = cart_->step_ppu();
+  }
+
   next_dot();
   cycles_++;
 }
@@ -282,6 +292,7 @@ void Ppu::step_pre_render_scanline() {
     regs_.PPUSTATUS &= ~PPUSTATUS_ALL;
   }
 
+  spr_loop_.step();
   bg_loop_.step();
 }
 
@@ -379,15 +390,15 @@ void Ppu::draw_dot() {
 
 uint8_t Ppu::bg_loop_fetch_nt() {
   // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
-  uint16_t addr = 0x2000 | (regs_.v & 0x0fff);
-  return peek(addr);
+  addr_bus_ = 0x2000 | (regs_.v & 0x0fff);
+  return peek(addr_bus_);
 }
 
 uint8_t Ppu::bg_loop_fetch_at() {
   // See https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
-  uint16_t addr = 0x23c0 | (regs_.v & 0x0c00) | ((regs_.v >> 4) & 0x38) |
-                  ((regs_.v >> 2) & 0x07);
-  uint8_t at = peek(addr);
+  addr_bus_ = 0x23c0 | (regs_.v & 0x0c00) | ((regs_.v >> 4) & 0x38) |
+              ((regs_.v >> 2) & 0x07);
+  uint8_t at = peek(addr_bus_);
 
   // See https://www.nesdev.org/wiki/PPU_attribute_tables
   int y      = (get_bits<V_COARSE_Y>(regs_.v) >> 1) & 1;
@@ -403,6 +414,7 @@ uint8_t Ppu::bg_loop_fetch_pt_lo(uint8_t nt) {
   uint16_t addr = bg_pt_base_addr();
   addr += nt << 4;
   addr += get_bits<V_FINE_Y>(regs_.v);
+  addr_bus_ = addr;
   return peek(addr);
 }
 
@@ -410,6 +422,7 @@ uint8_t Ppu::bg_loop_fetch_pt_hi(uint8_t nt) {
   uint16_t addr = bg_pt_base_addr() + 8;
   addr += nt << 4;
   addr += get_bits<V_FINE_Y>(regs_.v);
+  addr_bus_ = addr;
   return peek(addr);
 }
 
@@ -567,6 +580,15 @@ Coroutine Ppu::bg_loop() {
       bg_loop_shift_regs();
       bg_loop_reload_regs(at, bg_lo, bg_hi);
     }
+
+    // Cycles 337..340 are garbage NT fetches.
+    // nesdev says these are used by MMC5 to clock a counter.
+    assert(dot_ == 337);
+    bg_loop_fetch_nt();
+    SUSPEND_BG_LOOP();
+    SUSPEND_BG_LOOP();
+    bg_loop_fetch_nt();
+    // 2 more cycles here handled by falling through.
   }
 }
 
@@ -613,16 +635,24 @@ Coroutine Ppu::spr_loop() {
     }
 
     // Cycle 0 is idle.
-    assert(scanline_ >= 0 && scanline_ < 240);
+    assert(
+        scanline_ >= 0 && scanline_ < 240 || scanline_ == PRE_RENDER_SCANLINE
+    );
     assert(dot_ == 0);
     SPRITE_LOOP_SUSPEND();
 
     // Cycles 1..64 clear the secondary OAM.
     assert(dot_ == 1);
-    for (int i = 0; i < 32; i++) {
-      SPRITE_LOOP_SUSPEND();
-      soam_[i] = 0xff;
-      SPRITE_LOOP_SUSPEND();
+    if (scanline_ != PRE_RENDER_SCANLINE) {
+      for (int i = 0; i < 32; i++) {
+        SPRITE_LOOP_SUSPEND();
+        soam_[i] = 0xff;
+        SPRITE_LOOP_SUSPEND();
+      }
+    } else {
+      for (int i = 0; i < 64; i++) {
+        SPRITE_LOOP_SUSPEND();
+      }
     }
 
     // Cycles 65..256 are sprite evaluation.
@@ -630,33 +660,35 @@ Coroutine Ppu::spr_loop() {
     bool spr_size_8x16 = regs_.PPUCTRL & PPUCTRL_SPR_SIZE;
     int  spr_height    = spr_size_8x16 ? 16 : 8;
     bool spr0_enabled  = false;
-    for (int i = 0, soam_index = 0; i < 256; i += 4) {
-      uint8_t y = oam_[i];
-      SPRITE_LOOP_SUSPEND();
-      soam_[soam_index] = y;
-      SPRITE_LOOP_SUSPEND();
-      if (spr_y_in_range(y, scanline_, spr_height)) {
-        if (i == 0) {
-          spr0_enabled = true;
-        }
-        unsigned char tmp = oam_[i + 1];
+    if (scanline_ != PRE_RENDER_SCANLINE) {
+      for (int i = 0, soam_index = 0; i < 256; i += 4) {
+        uint8_t y = oam_[i];
         SPRITE_LOOP_SUSPEND();
-        soam_[++soam_index] = tmp;
+        soam_[soam_index] = y;
         SPRITE_LOOP_SUSPEND();
-        tmp = oam_[i + 2];
-        SPRITE_LOOP_SUSPEND();
-        soam_[++soam_index] = tmp;
-        SPRITE_LOOP_SUSPEND();
-        tmp = oam_[i + 3];
-        SPRITE_LOOP_SUSPEND();
-        soam_[++soam_index] = tmp;
-        SPRITE_LOOP_SUSPEND();
-        ++soam_index;
+        if (spr_y_in_range(y, scanline_, spr_height)) {
+          if (i == 0) {
+            spr0_enabled = true;
+          }
+          unsigned char tmp = oam_[i + 1];
+          SPRITE_LOOP_SUSPEND();
+          soam_[++soam_index] = tmp;
+          SPRITE_LOOP_SUSPEND();
+          tmp = oam_[i + 2];
+          SPRITE_LOOP_SUSPEND();
+          soam_[++soam_index] = tmp;
+          SPRITE_LOOP_SUSPEND();
+          tmp = oam_[i + 3];
+          SPRITE_LOOP_SUSPEND();
+          soam_[++soam_index] = tmp;
+          SPRITE_LOOP_SUSPEND();
+          ++soam_index;
 
-        // TODO: implement "correct" buggy sprite overflow.
-        if (soam_index >= 32) {
-          regs_.PPUSTATUS |= PPUSTATUS_SPR_OVF;
-          break;
+          // TODO: implement "correct" buggy sprite overflow.
+          if (soam_index >= 32) {
+            regs_.PPUSTATUS |= PPUSTATUS_SPR_OVF;
+            break;
+          }
         }
       }
     }
@@ -675,25 +707,29 @@ Coroutine Ppu::spr_loop() {
       }
       uint8_t y = soam_[soam_index];
       if (spr_y_in_range(y, scanline_, spr_height)) {
-        uint8_t  tile_idx = soam_[soam_index + 1];
-        uint8_t  attr     = soam_[soam_index + 2];
-        uint8_t  x        = soam_[soam_index + 3];
-        uint16_t addr     = spr_calc_pt_addr(
+        uint8_t tile_idx = soam_[soam_index + 1];
+        uint8_t attr     = soam_[soam_index + 2];
+        uint8_t x        = soam_[soam_index + 3];
+        addr_bus_        = spr_calc_pt_addr(
             scanline_ - y,
             tile_idx,
             spr_size_8x16,
             attr & SPR_ATTR_FLIP_VERT,
             spr_pt_base_addr()
         );
-        uint8_t pt_lo = peek(addr);
+        uint8_t pt_lo = peek(addr_bus_);
         SPRITE_LOOP_SUSPEND();
         SPRITE_LOOP_SUSPEND();
-        uint8_t pt_hi = peek(addr + 8);
+        addr_bus_ += 8;
+        uint8_t pt_hi = peek(addr_bus_);
         SPRITE_LOOP_SUSPEND();
         SPRITE_LOOP_SUSPEND();
         bool spr0 = spr0_enabled && soam_index == 0;
         spr_loop_render(x, attr, pt_lo, pt_hi, spr0);
       } else {
+        // Need to ensure the address bus changes here for MMC3 A12/IRQ counter
+        // compatibility.
+        addr_bus_ = spr_pt_base_addr();
         for (int i = 0; i < 4; i++) {
           SPRITE_LOOP_SUSPEND();
         }

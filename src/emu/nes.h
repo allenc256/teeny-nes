@@ -18,6 +18,7 @@ public:
 
   void power_up();
   void reset();
+  void step();
   void step(int cpu_cycles);
   bool is_powered_up() const { return powered_up_; }
 

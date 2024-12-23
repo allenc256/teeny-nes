@@ -369,6 +369,7 @@ void Cpu::power_up() {
   regs_.S          = 0xfd;
   regs_.P          = I_FLAG | DUMMY_FLAG;
   nmi_pending_     = false;
+  irq_pending_     = false;
   oam_dma_pending_ = false;
   cycles_          = RESET_CYCLES;
   std::memset(ram_, 0, sizeof(ram_));
@@ -379,6 +380,7 @@ void Cpu::reset() {
   regs_.S -= 3;
   regs_.P |= I_FLAG;
   nmi_pending_     = false;
+  irq_pending_     = false;
   oam_dma_pending_ = false;
   cycles_          = RESET_CYCLES;
 }
@@ -499,6 +501,15 @@ void Cpu::step() {
     step_NMI();
     cycles_ += NMI_CYCLES;
     nmi_pending_ = false;
+    return;
+  }
+
+  if (irq_pending_ && !get_flag(I_FLAG)) {
+    // TODO: nesdev says the effect of clearing this flag is delayed 1 cycle for
+    // certain instructions (SEI, CLI, or PLP).
+    step_IRQ();
+    cycles_ += IRQ_CYCLES;
+    irq_pending_ = false;
     return;
   }
 
@@ -953,7 +964,15 @@ void Cpu::step_TYA([[maybe_unused]] const OpCode &op) {
 void Cpu::step_NMI() {
   push16(regs_.PC);
   push(regs_.P & ~B_FLAG);
+  regs_.P |= I_FLAG;
   regs_.PC = peek16(NMI_VECTOR);
+}
+
+void Cpu::step_IRQ() {
+  push16(regs_.PC);
+  push(regs_.P & ~B_FLAG);
+  regs_.P |= I_FLAG;
+  regs_.PC = peek16(IRQ_VECTOR);
 }
 
 void Cpu::step_OAM_DMA() {
@@ -1202,5 +1221,7 @@ void Cpu::set_flag(Flags flag, bool value) {
     regs_.P &= ~flag;
   }
 }
+
+bool Cpu::get_flag(Flags flag) const { return regs_.P & flag; }
 
 const std::array<Cpu::OpCode, 256> &Cpu::all_op_codes() { return OP_CODES; }

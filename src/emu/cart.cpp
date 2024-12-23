@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "src/emu/cart.h"
+#include "src/emu/mapper/mmc3.h"
 #include "src/emu/mapper/nrom.h"
 #include "src/emu/mapper/uxrom.h"
 
@@ -65,9 +66,13 @@ uint8_t Header::prg_rom_chunks() const { return bytes_[4]; }
 uint8_t Header::chr_rom_chunks() const { return bytes_[5]; }
 bool    Header::chr_rom_readonly() const { return chr_rom_chunks() > 0; }
 
+bool Header::mirroring_specified() const {
+  return !(bytes_[6] & FLAGS_6_MIRROR_ALT);
+}
+
 Mirroring Header::mirroring() const {
-  if (bytes_[6] & FLAGS_6_MIRROR_ALT) {
-    throw std::runtime_error("unsupported mirroring type");
+  if (!mirroring_specified()) {
+    throw std::runtime_error("mirroring not specified");
   } else if (bytes_[6] & FLAGS_6_MIRROR_VERT) {
     return MIRROR_VERT;
   } else {
@@ -138,6 +143,7 @@ std::unique_ptr<Cart> read_cart(std::ifstream &is) {
   switch (header.mapper()) {
   case 0: return std::make_unique<NRom>(header, std::move(mem));
   case 2: return std::make_unique<UxRom>(header, std::move(mem));
+  case 4: return std::make_unique<Mmc3>(header, std::move(mem));
   default:
     throw std::runtime_error(
         std::format("unsupported ROM format: mapper {}", header.mapper())

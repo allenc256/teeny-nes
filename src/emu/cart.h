@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <memory>
 
+class Cpu;
+class Ppu;
+
 class Cart {
 public:
   static constexpr uint16_t PPU_ADDR_END   = 0x3f00;
@@ -77,6 +80,7 @@ public:
     uint8_t   chr_rom_chunks() const;
     bool      chr_rom_readonly() const;
     Mirroring mirroring() const;
+    bool      mirroring_specified() const;
     uint8_t   mapper() const;
 
   private:
@@ -95,11 +99,20 @@ public:
 
   virtual ~Cart() = default;
 
+  virtual void set_cpu(Cpu *) {}
+  virtual void set_ppu(Ppu *) {}
+  virtual void power_up() {}
+  virtual void reset() {}
+
   virtual uint8_t peek_cpu(uint16_t addr)            = 0;
   virtual void    poke_cpu(uint16_t addr, uint8_t x) = 0;
 
   virtual PeekPpu peek_ppu(uint16_t addr)            = 0;
   virtual PokePpu poke_ppu(uint16_t addr, uint8_t x) = 0;
+
+  // Returning false here means stop calling me on every PPU step (saves the
+  // overhead of a virtual function call per step).
+  virtual bool step_ppu() { return false; }
 
 protected:
   static uint16_t mirrored_nt_addr(Mirroring mirroring, uint16_t addr);

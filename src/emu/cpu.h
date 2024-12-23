@@ -159,6 +159,8 @@ public:
   uint16_t pop16();
 
   void signal_NMI() { nmi_pending_ = true; }
+  void signal_IRQ() { irq_pending_ = true; }
+  void clear_IRQ() { irq_pending_ = false; }
 
   void power_up();
   void reset();
@@ -239,6 +241,7 @@ private:
   void step_TYA(const OpCode &op);
 
   void step_NMI();
+  void step_IRQ();
   void step_OAM_DMA();
 
   void step_load_mem(const OpCode &op, uint8_t &reg);
@@ -251,6 +254,7 @@ private:
   void step_unimplemented(const OpCode &op);
 
   void set_flag(Flags flag, bool value);
+  bool get_flag(Flags flag) const;
 
   uint16_t decode_addr(const OpCode &op);
   uint8_t  decode_mem(const OpCode &op);
@@ -263,6 +267,7 @@ private:
   static constexpr uint16_t NMI_VECTOR   = 0xfffa;
   static constexpr int      NMI_CYCLES   = 7;
   static constexpr uint16_t IRQ_VECTOR   = 0xfffe;
+  static constexpr int      IRQ_CYCLES   = 7;
 
   static constexpr uint16_t PPU_PPUCTRL   = 0x2000;
   static constexpr uint16_t PPU_PPUMASK   = 0x2001;
@@ -291,6 +296,7 @@ private:
   bool      oops_;
   bool      jump_;
   bool      nmi_pending_;
+  bool      irq_pending_;
   bool      oam_dma_pending_;
   uint8_t  *test_ram_; // single-step tests
 };
