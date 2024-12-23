@@ -50,5 +50,5 @@ private:
   Cpu       *cpu_;
   Ppu       *ppu_;
   Mirroring  mirroring_;
-  bool       mirroring_locked_;
+  Mirroring  orig_mirroring_;
 };

@@ -9,10 +9,9 @@ Mmc3::Mmc3(const Header &header, Memory &&mem)
     : mem_(std::move(mem)),
       cpu_(nullptr) {
   if (header.mirroring_specified()) {
-    mirroring_        = header.mirroring();
-    mirroring_locked_ = true;
+    orig_mirroring_ = header.mirroring();
   } else {
-    mirroring_locked_ = false;
+    orig_mirroring_ = MIRROR_HORZ;
   }
 
   if (mem.prg_ram) {
@@ -27,10 +26,7 @@ void Mmc3::power_up() { reset(); }
 void Mmc3::reset() {
   std::memset(&regs_, 0, sizeof(regs_));
   std::memset(&irq_, 0, sizeof(irq_));
-
-  if (!mirroring_locked_) {
-    mirroring_ = MIRROR_HORZ;
-  }
+  mirroring_ = orig_mirroring_;
 }
 
 int Mmc3::prg_rom_banks() const { return mem_.prg_rom_size >> 13; }
@@ -86,9 +82,7 @@ void Mmc3::poke_cpu(uint16_t addr, uint8_t x) {
 }
 
 void Mmc3::write_mirroring(uint8_t x) {
-  if (mirroring_locked_) {
-    return;
-  } else if (x & 1) {
+  if (x & 1) {
     mirroring_ = MIRROR_HORZ;
   } else {
     mirroring_ = MIRROR_VERT;
@@ -104,9 +98,13 @@ void Mmc3::write_bank_data(uint8_t x) {
   case 3:
   case 4:
   case 5:
-  case 6: x %= chr_rom_banks(); break;
+    assert(x < chr_rom_banks());
+    x %= chr_rom_banks();
+    break;
+  case 6:
   default:
     x &= 0b00111111;
+    assert(x < prg_rom_banks());
     x %= prg_rom_banks();
     break;
   }
@@ -137,26 +135,26 @@ Mmc3::PokePpu Mmc3::poke_ppu(uint16_t addr, uint8_t x) {
 }
 
 int Mmc3::map_prg_rom_addr(uint16_t cpu_addr) {
-  int bank_index;
+  int bank;
   int region = (cpu_addr - 0x8000) >> 13;
   assert(region >= 0 && region < 4);
   if (!(regs_.bank_select & 0b0100000)) {
     switch (region) {
-    case 0: bank_index = regs_.R[6]; break;
-    case 1: bank_index = regs_.R[7]; break;
-    case 2: bank_index = prg_rom_banks() - 2; break;
-    default: bank_index = prg_rom_banks() - 1; break;
+    case 0: bank = regs_.R[6]; break;
+    case 1: bank = regs_.R[7]; break;
+    case 2: bank = prg_rom_banks() - 2; break;
+    default: bank = prg_rom_banks() - 1; break;
     }
   } else {
     switch (region) {
-    case 0: bank_index = prg_rom_banks() - 2; break;
-    case 1: bank_index = regs_.R[7]; break;
-    case 2: bank_index = regs_.R[6]; break;
-    default: bank_index = prg_rom_banks() - 1; break;
+    case 0: bank = prg_rom_banks() - 2; break;
+    case 1: bank = regs_.R[7]; break;
+    case 2: bank = regs_.R[6]; break;
+    default: bank = prg_rom_banks() - 1; break;
     }
   }
-  int bank_offset = cpu_addr & 0x1fff;
-  int prg_addr    = (bank_index << 13) + bank_offset;
+  int offset   = cpu_addr & 0x1fff;
+  int prg_addr = (bank << 13) + offset;
   assert(prg_addr < mem_.prg_rom_size);
   return prg_addr;
 }
@@ -164,30 +162,34 @@ int Mmc3::map_prg_rom_addr(uint16_t cpu_addr) {
 int Mmc3::map_chr_rom_addr(uint16_t ppu_addr) {
   int region = ppu_addr >> 10;
   int offset = ppu_addr & 1023;
+  int bank;
   assert(region >= 0 && region < 8);
   if (!(regs_.bank_select & 0b10000000)) {
     switch (region) {
-    case 0: return (regs_.R[0] << 10) + offset;
-    case 1: return ((regs_.R[0] + 1) << 10) + offset;
-    case 2: return (regs_.R[1] << 10) + offset;
-    case 3: return ((regs_.R[1] + 1) << 10) + offset;
-    case 4: return (regs_.R[2] << 10) + offset;
-    case 5: return (regs_.R[3] << 10) + offset;
-    case 6: return (regs_.R[4] << 10) + offset;
-    default: return (regs_.R[5] << 10) + offset;
+    case 0: bank = regs_.R[0]; break;
+    case 1: bank = regs_.R[0] + 1; break;
+    case 2: bank = regs_.R[1]; break;
+    case 3: bank = regs_.R[1] + 1; break;
+    case 4: bank = regs_.R[2]; break;
+    case 5: bank = regs_.R[3]; break;
+    case 6: bank = regs_.R[4]; break;
+    default: bank = regs_.R[5]; break;
     }
   } else {
     switch (region) {
-    case 0: return (regs_.R[2] << 10) + offset;
-    case 1: return (regs_.R[3] << 10) + offset;
-    case 2: return (regs_.R[4] << 10) + offset;
-    case 3: return (regs_.R[5] << 10) + offset;
-    case 4: return (regs_.R[0] << 10) + offset;
-    case 5: return ((regs_.R[0] + 1) << 10) + offset;
-    case 6: return (regs_.R[1] << 10) + offset;
-    default: return ((regs_.R[1] + 1) << 10) + offset;
+    case 0: bank = regs_.R[2]; break;
+    case 1: bank = regs_.R[3]; break;
+    case 2: bank = regs_.R[4]; break;
+    case 3: bank = regs_.R[5]; break;
+    case 4: bank = regs_.R[0]; break;
+    case 5: bank = regs_.R[0] + 1; break;
+    case 6: bank = regs_.R[1]; break;
+    default: bank = regs_.R[1] + 1; break;
     }
   }
+  int chr_addr = (bank << 10) + offset;
+  assert(chr_addr < mem_.chr_rom_size);
+  return chr_addr;
 }
 
 bool Mmc3::step_ppu() {
