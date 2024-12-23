@@ -43,10 +43,10 @@ private:
 };
 
 static void run_test_rom(std::string_view name, int64_t max_cycles) {
-  Labels labels(std::format("test_roms/{}.labels.txt", name));
+  Labels labels(std::format("test_data/{}.labels.txt", name));
 
   Nes nes;
-  nes.load_cart(std::format("test_roms/{}.nes", name));
+  nes.load_cart(std::format("test_data/{}.nes", name));
   nes.power_up();
 
   while (nes.cpu().cycles() < max_cycles) {
