@@ -75,13 +75,14 @@ public:
     Header(uint8_t bytes[16]);
 
     bool      has_trainer() const;
-    bool      has_prg_ram() const;
-    uint8_t   prg_rom_chunks() const;
-    uint8_t   chr_rom_chunks() const;
+    bool      prg_ram_persistent() const;
+    int       prg_rom_chunks() const;
+    int       chr_rom_chunks() const;
+    int       prg_ram_chunks() const;
     bool      chr_rom_readonly() const;
     Mirroring mirroring() const;
     bool      mirroring_specified() const;
-    uint8_t   mapper() const;
+    int       mapper() const;
 
   private:
     uint8_t bytes_[16];

@@ -13,10 +13,6 @@ Mmc3::Mmc3(const Header &header, Memory &&mem)
   } else {
     orig_mirroring_ = MIRROR_HORZ;
   }
-
-  if (mem.prg_ram) {
-    throw std::runtime_error("PRG RAM not supported for this mapper");
-  }
 }
 
 void Mmc3::set_cpu(Cpu *cpu) { cpu_ = cpu; }
@@ -35,13 +31,18 @@ int Mmc3::chr_rom_banks() const { return mem_.chr_rom_size >> 10; }
 uint8_t Mmc3::peek_cpu(uint16_t addr) {
   if (addr >= 0x8000) {
     return mem_.prg_rom[map_prg_rom_addr(addr)];
+  } else if (addr >= 0x6000) {
+    return mem_.prg_ram[addr - 0x6000];
   } else {
     return 0;
   }
 }
 
 void Mmc3::poke_cpu(uint16_t addr, uint8_t x) {
-  if (addr < 0x8000) {
+  if (addr < 0x6000) {
+    return;
+  } else if (addr < 0x8000) {
+    mem_.prg_ram[addr - 0x6000] = x;
     return;
   }
 

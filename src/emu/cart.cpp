@@ -38,10 +38,10 @@ static constexpr uint8_t HEADER_TAG[4] = {0x4e, 0x45, 0x53, 0x1a};
 // |||||+--- 1: 512-byte trainer at $7000-$71FF (stored before PRG data)
 // ||||+---- 1: Alternative nametable layout
 // ++++----- Lower nybble of mapper number
-static constexpr uint8_t FLAGS_6_MIRROR_VERT = 0b00000001;
-static constexpr uint8_t FLAGS_6_PRG_RAM     = 0b00000010;
-static constexpr uint8_t FLAGS_6_TRAINER     = 0b00000100;
-static constexpr uint8_t FLAGS_6_MIRROR_ALT  = 0b00001000;
+static constexpr uint8_t FLAGS_6_MIRROR_VERT        = 0b00000001;
+static constexpr uint8_t FLAGS_6_PRG_RAM_PERSISTENT = 0b00000010;
+static constexpr uint8_t FLAGS_6_TRAINER            = 0b00000100;
+static constexpr uint8_t FLAGS_6_MIRROR_ALT         = 0b00001000;
 
 static bool header_is_nes20(uint8_t bytes[16]) {
   return (bytes[7] & 0b00001100) == 0b00001000;
@@ -60,11 +60,16 @@ Header::Header(uint8_t bytes[16]) {
   std::memcpy(bytes_, bytes, sizeof(bytes_));
 }
 
-bool    Header::has_trainer() const { return bytes_[6] & FLAGS_6_TRAINER; }
-bool    Header::has_prg_ram() const { return bytes_[6] & FLAGS_6_PRG_RAM; }
-uint8_t Header::prg_rom_chunks() const { return bytes_[4]; }
-uint8_t Header::chr_rom_chunks() const { return bytes_[5]; }
-bool    Header::chr_rom_readonly() const { return chr_rom_chunks() > 0; }
+bool Header::has_trainer() const { return bytes_[6] & FLAGS_6_TRAINER; }
+
+bool Header::prg_ram_persistent() const {
+  return bytes_[6] & FLAGS_6_PRG_RAM_PERSISTENT;
+}
+
+int  Header::prg_rom_chunks() const { return bytes_[4]; }
+int  Header::chr_rom_chunks() const { return bytes_[5]; }
+int  Header::prg_ram_chunks() const { return bytes_[8]; }
+bool Header::chr_rom_readonly() const { return chr_rom_chunks() > 0; }
 
 bool Header::mirroring_specified() const {
   return !(bytes_[6] & FLAGS_6_MIRROR_ALT);
@@ -80,7 +85,7 @@ Mirroring Header::mirroring() const {
   }
 }
 
-uint8_t Header::mapper() const {
+int Header::mapper() const {
   uint8_t lower_nibble = bytes_[6] >> 4;
   uint8_t upper_nibble = bytes_[7] & 0xf0;
   return lower_nibble | upper_nibble;
@@ -125,13 +130,9 @@ Memory read_data(std::ifstream &is, const Header &header) {
     std::memset(mem.chr_rom.get(), 0, mem.chr_rom_size);
   }
 
-  if (header.has_prg_ram()) {
-    mem.prg_ram_size = 8 * 1024;
-    mem.prg_ram      = std::make_unique<uint8_t[]>(mem.prg_ram_size);
-    std::memset(mem.prg_ram.get(), 0, mem.prg_ram_size);
-  } else {
-    mem.prg_ram_size = 0;
-  }
+  mem.prg_ram_size = std::max(1, header.prg_ram_chunks()) * 8 * 1024;
+  mem.prg_ram      = std::make_unique<uint8_t[]>(mem.prg_ram_size);
+  std::memset(mem.prg_ram.get(), 0, mem.prg_ram_size);
 
   return mem;
 }

@@ -29,7 +29,7 @@ uint8_t NRom::peek_cpu(uint16_t addr) {
   assert(addr >= CPU_ADDR_START);
   if (addr >= 0x8000) {
     return mem_.prg_rom[addr & prg_rom_mask_];
-  } else if (addr >= 0x6000 && mem_.prg_ram) {
+  } else if (addr >= 0x6000) {
     return mem_.prg_ram[addr - 0x6000];
   } else {
     return 0;
@@ -37,7 +37,7 @@ uint8_t NRom::peek_cpu(uint16_t addr) {
 }
 
 void NRom::poke_cpu(uint16_t addr, uint8_t x) {
-  if (mem_.prg_ram && addr >= 0x6000 && addr <= 0x7fff) {
+  if (addr >= 0x6000 && addr <= 0x7fff) {
     mem_.prg_ram[addr - 0x6000] = x;
   } else {
     // no-op
