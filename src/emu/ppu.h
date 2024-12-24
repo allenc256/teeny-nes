@@ -63,6 +63,8 @@ public:
   bool     rendering() const;
   bool     bg_rendering() const;
   bool     spr_rendering() const;
+  bool     bg_show_left() const;
+  bool     spr_show_left() const;
   uint16_t bg_pt_base_addr() const;
   uint16_t spr_pt_base_addr() const;
   int      color_emphasis() const;
@@ -137,8 +139,8 @@ private:
   // |+-------- Emphasize green (red on PAL/Dendy)
   // +--------- Emphasize blue
   static constexpr uint8_t PPUMASK_GRAY          = 0b00000001;
-  static constexpr uint8_t PPUMASK_BG_LEFT       = 0b00000010;
-  static constexpr uint8_t PPUMASK_SPR_LEFT      = 0b00000100;
+  static constexpr uint8_t PPUMASK_BG_SHOW_LEFT  = 0b00000010;
+  static constexpr uint8_t PPUMASK_SPR_SHOW_LEFT = 0b00000100;
   static constexpr uint8_t PPUMASK_BG_RENDERING  = 0b00001000;
   static constexpr uint8_t PPUMASK_SPR_RENDERING = 0b00010000;
   static constexpr uint8_t PPUMASK_RENDERING     = 0b00011000;

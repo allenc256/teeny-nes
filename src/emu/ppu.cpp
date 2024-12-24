@@ -33,6 +33,12 @@ bool Ppu::spr_rendering() const {
   return regs_.PPUMASK & PPUMASK_SPR_RENDERING;
 }
 
+bool Ppu::bg_show_left() const { return regs_.PPUMASK & PPUMASK_BG_SHOW_LEFT; }
+
+bool Ppu::spr_show_left() const {
+  return regs_.PPUMASK & PPUMASK_SPR_SHOW_LEFT;
+}
+
 int Ppu::color_emphasis() const {
   return get_bits<PPUMASK_EMPHASIS>(regs_.PPUMASK);
 }
@@ -352,12 +358,12 @@ void Ppu::draw_dot() {
   bool spr_behind    = false;
   bool spr0_rendered = false;
 
-  if (spr_rendering()) {
+  if (spr_rendering() && (spr_show_left() || x >= 8)) {
     spr_buf_.get(x, pat, pal, spr_behind, spr0_rendered);
     pal += 4;
   }
 
-  if (bg_rendering()) {
+  if (bg_rendering() && (bg_show_left() || x >= 8)) {
     uint8_t bg_lo  = (regs_.shift_bg_lo >> (15 - regs_.x)) & 1;
     uint8_t bg_hi  = (regs_.shift_bg_hi >> (15 - regs_.x)) & 1;
     int     bg_pat = bg_lo | (bg_hi << 1);
@@ -376,8 +382,6 @@ void Ppu::draw_dot() {
       }
     }
   }
-
-  // TODO: handle PPUMASK left clip
 
   uint8_t color;
   if (pat) {
