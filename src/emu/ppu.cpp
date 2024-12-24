@@ -495,6 +495,12 @@ Coroutine Ppu::bg_loop() {
     // Cycle 0 is idle.
     assert(scanline_ == 261 || scanline_ < 240);
     assert(dot_ == 0);
+    // Nesdev says the value of the address bus should be the same as the PT
+    // fetch that happens later on dot 5. For simplicity, we just set it to the
+    // base PT address. Emulating this behavior seems to be necessary for the
+    // MMC3 A12/IRQ scanline counter to operate properly on Mega Man 3
+    // (specifically the status bar on Gemini Man's stage).
+    addr_bus_ = bg_pt_base_addr();
     SUSPEND_BG_LOOP();
 
     // Cycles 1..256 fetch and load BG shift registers.
@@ -531,26 +537,22 @@ Coroutine Ppu::bg_loop() {
       bg_loop_reload_regs(at, bg_lo, bg_hi);
     }
 
-    // Cycle 257 sets the vertical fields of v.
+    // Cycles 257..320 contain garbage NT fetches.
+    // Emulating the garbage NT seems to be necessary for the MMC3 A12/IRQ
+    // scanline counter to operate properly on Mega Man 3 (specifically the
+    // status bar on Gemini Man's stage).
     assert(dot_ == 257);
-    bg_loop_set_v_horz();
-    SUSPEND_BG_LOOP();
-
-    // Cycles 258..279 are idle.
-    while (dot_ != 280) {
-      SUSPEND_BG_LOOP();
-    }
-
-    // Cycles 280..304 set the horizontal fields of v (pre-render only).
-    for (int i = 280; i <= 304; i++) {
-      if (scanline_ == PRE_RENDER_SCANLINE) {
+    while (dot_ != 321) {
+      int rel_dot = (dot_ - 257) & 0x7;
+      if (rel_dot == 0 || rel_dot == 1) {
+        bg_loop_fetch_nt();
+      }
+      if (dot_ == 257) {
+        bg_loop_set_v_horz();
+      }
+      if (dot_ >= 280 && dot_ <= 304 && scanline_ == PRE_RENDER_SCANLINE) {
         bg_loop_set_v_vert();
       }
-      SUSPEND_BG_LOOP();
-    }
-
-    // Cycles 305..320 are idle.
-    while (dot_ != 321) {
       SUSPEND_BG_LOOP();
     }
 
