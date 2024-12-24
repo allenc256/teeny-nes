@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "src/emu/cart.h"
+#include "src/emu/mapper/mmc1.h"
 #include "src/emu/mapper/mmc3.h"
 #include "src/emu/mapper/nrom.h"
 #include "src/emu/mapper/uxrom.h"
@@ -18,10 +19,13 @@ static constexpr uint16_t MIRROR_HORZ_NT_MASK  = 0x800;
 static constexpr uint16_t MIRROR_VERT_MASK     = 0x7ff;
 
 uint16_t Cart::mirrored_nt_addr(Mirroring mirroring, uint16_t addr) {
-  if (mirroring == MIRROR_HORZ) {
+  switch (mirroring) {
+  case MIRROR_HORZ:
     return (addr & MIRROR_HORZ_OFF_MASK) | ((addr & MIRROR_HORZ_NT_MASK) >> 1);
-  } else {
-    return addr & MIRROR_VERT_MASK;
+  case MIRROR_VERT: return addr & MIRROR_VERT_MASK;
+  case MIRROR_SCREEN_A_ONLY: return addr & 0x3ff;
+  case MIRROR_SCREEN_B_ONLY: return (addr & 0x3ff) + 1024;
+  default: throw std::runtime_error("unreachable");
   }
 }
 
@@ -143,6 +147,7 @@ std::unique_ptr<Cart> read_cart(std::ifstream &is) {
 
   switch (header.mapper()) {
   case 0: return std::make_unique<NRom>(header, std::move(mem));
+  case 1: return std::make_unique<Mmc1>(header, std::move(mem));
   case 2: return std::make_unique<UxRom>(header, std::move(mem));
   case 4: return std::make_unique<Mmc3>(header, std::move(mem));
   default:

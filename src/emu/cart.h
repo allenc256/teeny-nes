@@ -68,7 +68,12 @@ public:
     uint16_t bits_;
   };
 
-  enum Mirroring { MIRROR_VERT, MIRROR_HORZ };
+  enum Mirroring {
+    MIRROR_VERT,
+    MIRROR_HORZ,
+    MIRROR_SCREEN_A_ONLY,
+    MIRROR_SCREEN_B_ONLY
+  };
 
   class Header {
   public:
