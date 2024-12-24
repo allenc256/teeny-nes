@@ -8,7 +8,6 @@ Nes::Nes() : powered_up_(false) {
   cpu_.set_ppu(&ppu_);
   cpu_.set_input(&input_);
   ppu_.set_cpu(&cpu_);
-  input_.set_ppu(&ppu_);
 }
 
 void Nes::power_up() {

@@ -27,7 +27,6 @@ class Input {
 public:
   Input();
 
-  void set_ppu(Ppu *ppu);
   void set_controller(Controller *controller, int index);
 
   void power_up();
@@ -37,8 +36,8 @@ public:
   uint8_t read_controller(int index);
 
 private:
-  Ppu        *ppu_;
   Controller *controllers_[2];
   uint8_t     shift_reg_[2];
+  int         turbo_counter_;
   bool        strobe_;
 };
