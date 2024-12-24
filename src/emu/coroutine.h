@@ -1,6 +1,7 @@
 #pragma once
 
 #include <coroutine>
+#include <exception>
 
 class Coroutine {
 public:
@@ -12,9 +13,17 @@ public:
     }
 
     std::suspend_always initial_suspend() { return {}; }
-    void                return_void() {}
-    void                unhandled_exception() {}
     std::suspend_always final_suspend() noexcept { return {}; }
+    void unhandled_exception() { exn_ = std::current_exception(); }
+
+    void return_void() {
+      if (exn_) {
+        std::rethrow_exception(exn_);
+      }
+    }
+
+  private:
+    std::exception_ptr exn_;
   };
 
   Coroutine()                                            = delete;

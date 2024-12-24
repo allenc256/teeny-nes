@@ -17,7 +17,7 @@ AppWindow::AppWindow()
       game_window_(nes_, renderer_.get()),
       ppu_window_(nes_, renderer_.get()) {
   nes_.input().set_controller(&keyboard_, 0);
-  nes_.load_cart("test_roms/1942.nes");
+  nes_.load_cart("test_roms/smb2.nes");
   nes_.power_up();
 }
 
