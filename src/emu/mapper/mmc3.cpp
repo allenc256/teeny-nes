@@ -135,7 +135,7 @@ int Mmc3::map_prg_rom_addr(uint16_t cpu_addr) {
   int bank;
   int region = (cpu_addr - 0x8000) >> 13;
   assert(region >= 0 && region < 4);
-  if (!(regs_.bank_select & 0b0100000)) {
+  if (!(regs_.bank_select & 0b01000000)) {
     switch (region) {
     case 0: bank = regs_.R[6]; break;
     case 1: bank = regs_.R[7]; break;
