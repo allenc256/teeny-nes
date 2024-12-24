@@ -4,5 +4,5 @@
 
 class KeyboardController : public Controller {
 public:
-  uint8_t poll() override;
+  uint8_t poll(int64_t frames) override;
 };

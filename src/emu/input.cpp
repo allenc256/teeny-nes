@@ -4,11 +4,13 @@
 #include <stdexcept>
 
 #include "src/emu/input.h"
+#include "src/emu/ppu.h"
 
 Input::Input() : controllers_{0}, strobe_(false) {}
 
 void Input::power_up() { strobe_ = false; }
 void Input::reset() { strobe_ = false; }
+void Input::set_ppu(Ppu *ppu) { ppu_ = ppu; }
 
 void Input::set_controller(Controller *controller, int index) {
   if (!(index >= 0 && index < 2)) {
@@ -23,7 +25,7 @@ void Input::write_controller(uint8_t x) {
   if (strobe_) {
     for (int i = 0; i < 2; i++) {
       auto controller = controllers_[i];
-      shift_reg_[i]   = controller ? controller->poll() : 0;
+      shift_reg_[i]   = controller ? controller->poll(ppu_->frames()) : 0;
     }
   }
 }

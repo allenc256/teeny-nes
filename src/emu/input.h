@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+class Ppu;
+
 class Controller {
 public:
   enum ButtonFlags {
@@ -15,14 +17,15 @@ public:
     RIGHT  = 0b10000000,
   };
 
-  virtual ~Controller()  = default;
-  virtual uint8_t poll() = 0;
+  virtual ~Controller()                = default;
+  virtual uint8_t poll(int64_t frames) = 0;
 };
 
 class Input {
 public:
   Input();
 
+  void set_ppu(Ppu *ppu);
   void set_controller(Controller *controller, int index);
 
   void power_up();
@@ -32,6 +35,7 @@ public:
   uint8_t read_controller(int index);
 
 private:
+  Ppu        *ppu_;
   Controller *controllers_[2];
   uint8_t     shift_reg_[2];
   bool        strobe_;
