@@ -30,7 +30,7 @@ private:
     bool    enabled;
     bool    reload;
     bool    prev_a12;
-    bool    prev_cycles;
+    int64_t prev_cycles;
   };
 
   void write_bank_data(uint8_t x);
