@@ -98,14 +98,10 @@ void Mmc3::write_bank_data(uint8_t x) {
   case 2:
   case 3:
   case 4:
-  case 5:
-    assert(x < chr_rom_banks());
-    x %= chr_rom_banks();
-    break;
+  case 5: x %= chr_rom_banks(); break;
   case 6:
   default:
     x &= 0b00111111;
-    assert(x < prg_rom_banks());
     x %= prg_rom_banks();
     break;
   }
