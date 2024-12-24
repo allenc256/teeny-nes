@@ -10,23 +10,17 @@ static constexpr SDL_Scancode KEYMAP[] = {
     SDL_SCANCODE_UP,
     SDL_SCANCODE_DOWN,
     SDL_SCANCODE_LEFT,
-    SDL_SCANCODE_RIGHT
+    SDL_SCANCODE_RIGHT,
+    SDL_SCANCODE_X,
+    SDL_SCANCODE_Z,
 };
 
-uint8_t KeyboardController::poll(int64_t frames) {
+int KeyboardController::poll() {
   const Uint8 *states = SDL_GetKeyboardState(NULL);
-  uint8_t      result = 0;
-  for (int i = 0; i < 8; i++) {
+  int          result = 0;
+  for (int i = 0; i < 10; i++) {
     if (states[KEYMAP[i]]) {
-      result |= (uint8_t)(1u << i);
-    }
-  }
-  if ((frames & 3) == 0) {
-    if (states[SDL_SCANCODE_X]) {
-      result |= A;
-    }
-    if (states[SDL_SCANCODE_Z]) {
-      result |= B;
+      result |= 1u << i;
     }
   }
   return result;

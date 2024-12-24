@@ -7,18 +7,20 @@ class Ppu;
 class Controller {
 public:
   enum ButtonFlags {
-    A      = 0b00000001,
-    B      = 0b00000010,
-    SELECT = 0b00000100,
-    START  = 0b00001000,
-    UP     = 0b00010000,
-    DOWN   = 0b00100000,
-    LEFT   = 0b01000000,
-    RIGHT  = 0b10000000,
+    BUTTON_A       = 1 << 0,
+    BUTTON_B       = 1 << 1,
+    BUTTON_SELECT  = 1 << 2,
+    BUTTON_START   = 1 << 3,
+    BUTTON_UP      = 1 << 4,
+    BUTTON_DOWN    = 1 << 5,
+    BUTTON_LEFT    = 1 << 6,
+    BUTTON_RIGHT   = 1 << 7,
+    BUTTON_TURBO_A = 1 << 8,
+    BUTTON_TURBO_B = 1 << 9,
   };
 
-  virtual ~Controller()                = default;
-  virtual uint8_t poll(int64_t frames) = 0;
+  virtual ~Controller() = default;
+  virtual int poll()    = 0;
 };
 
 class Input {

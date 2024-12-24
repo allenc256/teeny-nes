@@ -21,11 +21,21 @@ void Input::set_controller(Controller *controller, int index) {
 }
 
 void Input::write_controller(uint8_t x) {
+  using enum Controller::ButtonFlags;
   strobe_ = x & 1;
   if (strobe_) {
     for (int i = 0; i < 2; i++) {
       auto controller = controllers_[i];
-      shift_reg_[i]   = controller ? controller->poll(ppu_->frames()) : 0;
+      int  flags      = controller ? controller->poll() : 0;
+      if ((ppu_->frames() & 3) == 0) {
+        if (flags & BUTTON_TURBO_A) {
+          flags |= BUTTON_A;
+        }
+        if (flags & BUTTON_TURBO_B) {
+          flags |= BUTTON_B;
+        }
+      }
+      shift_reg_[i] = (uint8_t)flags;
     }
   }
 }
