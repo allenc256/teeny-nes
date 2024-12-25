@@ -25,7 +25,7 @@ void Input::write_controller(uint8_t x) {
     for (int i = 0; i < 2; i++) {
       auto controller = controllers_[i];
       int  flags      = controller ? controller->poll() : 0;
-      if (turbo_counter_ == 0) {
+      if (turbo_counter_ <= 3) {
         if (flags & BUTTON_TURBO_A) {
           flags |= BUTTON_A;
         }
@@ -35,7 +35,7 @@ void Input::write_controller(uint8_t x) {
       }
       shift_reg_[i] = (uint8_t)flags;
     }
-    turbo_counter_ = (turbo_counter_ + 1) & 3;
+    turbo_counter_ = (turbo_counter_ + 1) & 7;
   }
 }
 

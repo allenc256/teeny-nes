@@ -94,6 +94,8 @@ void Ppu::reset() {
   cycles_           = 0;
   frames_           = 0;
   ready_            = false;
+  bg_loop_          = bg_loop();
+  spr_loop_         = spr_loop();
 
   std::memset(back_frame_.get(), 0, sizeof(256 * 240));
   std::memset(front_frame_.get(), 0, sizeof(256 * 240));
@@ -479,62 +481,71 @@ void Ppu::bg_loop_shift_regs() {
   regs_.shift_at_hi <<= 1;
 }
 
-#define SUSPEND_BG_LOOP()                                                      \
-  co_await std::suspend_always();                                              \
-  if (dot_ == 0 || !rendering()) {                                             \
-    goto bg_loop_reset;                                                        \
-  }
+static constexpr std::suspend_always SUSPEND_ALWAYS;
 
 Coroutine Ppu::bg_loop() {
-  while (true) {
-  bg_loop_reset:
-    while (dot_ != 0 || !rendering()) {
-      co_await std::suspend_always();
-    }
+  uint8_t nt = 0, at = 0, pt_lo = 0, pt_hi = 0;
 
+  while (true) {
     // Cycle 0 is idle.
     assert(scanline_ == 261 || scanline_ < 240);
     assert(dot_ == 0);
-    // Nesdev says the value of the address bus should be the same as the PT
-    // fetch that happens later on dot 5. For simplicity, we just set it to the
-    // base PT address. Emulating this behavior seems to be necessary for the
-    // MMC3 A12/IRQ scanline counter to operate properly on Mega Man 3
-    // (specifically the status bar on Gemini Man's stage).
-    addr_bus_ = bg_pt_base_addr();
-    SUSPEND_BG_LOOP();
+    if (rendering()) {
+      // Nesdev says the value of the address bus should be the same as the PT
+      // fetch that happens later on dot 5. For simplicity, we just set it to
+      // the base PT address. Emulating this behavior seems to be necessary for
+      // the MMC3 A12/IRQ scanline counter to operate properly on Mega Man 3
+      // (specifically the status bar on Gemini Man's stage).
+      addr_bus_ = bg_pt_base_addr();
+    }
+    co_await SUSPEND_ALWAYS;
 
     // Cycles 1..256 fetch and load BG shift registers.
     assert(dot_ == 1);
     while (dot_ != 257) {
-      uint8_t tmp = bg_loop_fetch_nt();
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      uint8_t nt = tmp;
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      tmp = bg_loop_fetch_at();
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      uint8_t at = tmp;
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      tmp = bg_loop_fetch_pt_lo(nt);
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      uint8_t bg_lo = tmp;
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      tmp = bg_loop_fetch_pt_hi(nt);
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      uint8_t bg_hi = tmp;
-      bg_loop_inc_v_horz();
-      if (dot_ == 256) {
-        bg_loop_inc_v_vert();
+      if (rendering()) {
+        nt = bg_loop_fetch_nt();
       }
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      bg_loop_reload_regs(at, bg_lo, bg_hi);
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        at = bg_loop_fetch_at();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        pt_lo = bg_loop_fetch_pt_lo(nt);
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        pt_hi = bg_loop_fetch_pt_hi(nt);
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        bg_loop_inc_v_horz();
+        if (dot_ == 256) {
+          bg_loop_inc_v_vert();
+        }
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        bg_loop_reload_regs(at, pt_lo, pt_hi);
+      }
     }
 
     // Cycles 257..320 contain garbage NT fetches.
@@ -543,58 +554,80 @@ Coroutine Ppu::bg_loop() {
     // status bar on Gemini Man's stage).
     assert(dot_ == 257);
     while (dot_ != 321) {
-      int rel_dot = (dot_ - 257) & 0x7;
-      if (rel_dot == 0 || rel_dot == 1) {
-        bg_loop_fetch_nt();
+      if (rendering()) {
+        int rel_dot = (dot_ - 257) & 0x7;
+        if (rel_dot == 0 || rel_dot == 1) {
+          bg_loop_fetch_nt();
+        }
+        if (dot_ == 257) {
+          bg_loop_set_v_horz();
+        }
+        if (dot_ >= 280 && dot_ <= 304 && scanline_ == PRE_RENDER_SCANLINE) {
+          bg_loop_set_v_vert();
+        }
       }
-      if (dot_ == 257) {
-        bg_loop_set_v_horz();
-      }
-      if (dot_ >= 280 && dot_ <= 304 && scanline_ == PRE_RENDER_SCANLINE) {
-        bg_loop_set_v_vert();
-      }
-      SUSPEND_BG_LOOP();
+      co_await SUSPEND_ALWAYS;
     }
 
     // Cycles 321..336 fetch and load BG shift regs (for the next scanline).
     assert(dot_ == 321);
     while (dot_ != 337) {
-      uint8_t tmp = bg_loop_fetch_nt();
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      uint8_t nt = tmp;
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      tmp = bg_loop_fetch_at();
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      uint8_t at = tmp;
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      tmp = bg_loop_fetch_pt_lo(nt);
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      uint8_t bg_lo = tmp;
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      tmp = bg_loop_fetch_pt_hi(nt);
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      uint8_t bg_hi = tmp;
-      bg_loop_inc_v_horz();
-      SUSPEND_BG_LOOP();
-      bg_loop_shift_regs();
-      bg_loop_reload_regs(at, bg_lo, bg_hi);
+      if (rendering()) {
+        nt = bg_loop_fetch_nt();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        at = bg_loop_fetch_at();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        pt_lo = bg_loop_fetch_pt_lo(nt);
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        pt_hi = bg_loop_fetch_pt_hi(nt);
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        bg_loop_inc_v_horz();
+      }
+      co_await SUSPEND_ALWAYS;
+      if (rendering()) {
+        bg_loop_shift_regs();
+        bg_loop_reload_regs(at, pt_lo, pt_hi);
+      }
     }
 
     // Cycles 337..340 are garbage NT fetches.
     // nesdev says these are used by MMC5 to clock a counter.
     assert(dot_ == 337);
-    bg_loop_fetch_nt();
-    SUSPEND_BG_LOOP();
-    SUSPEND_BG_LOOP();
-    bg_loop_fetch_nt();
-    // 2 more cycles here handled by falling through.
+    if (rendering()) {
+      bg_loop_fetch_nt();
+    }
+    co_await SUSPEND_ALWAYS;
+    co_await SUSPEND_ALWAYS;
+    if (rendering()) {
+      bg_loop_fetch_nt();
+    }
+    while (dot_ != 0) {
+      co_await SUSPEND_ALWAYS;
+    }
   }
 }
 
@@ -626,38 +659,29 @@ static uint16_t spr_calc_pt_addr(
   return (uint16_t)(base_pt_addr + (tile_index << 4) + rel_y);
 }
 
-#define SPRITE_LOOP_SUSPEND()                                                  \
-  co_await std::suspend_always();                                              \
-  if (dot_ == 0 || !rendering()) {                                             \
-    goto spr_loop_reset;                                                       \
-  }
-
 // Reference: https://forums.nesdev.org/viewtopic.php?t=15870
 Coroutine Ppu::spr_loop() {
   while (true) {
-  spr_loop_reset:
-    while (dot_ != 0 || !rendering()) {
-      co_await std::suspend_always();
-    }
-
     // Cycle 0 is idle.
     assert(
         scanline_ >= 0 && scanline_ < 240 || scanline_ == PRE_RENDER_SCANLINE
     );
     assert(dot_ == 0);
-    SPRITE_LOOP_SUSPEND();
+    co_await SUSPEND_ALWAYS;
 
     // Cycles 1..64 clear the secondary OAM.
     assert(dot_ == 1);
     if (scanline_ != PRE_RENDER_SCANLINE) {
       for (int i = 0; i < 32; i++) {
-        SPRITE_LOOP_SUSPEND();
-        soam_[i] = 0xff;
-        SPRITE_LOOP_SUSPEND();
+        co_await SUSPEND_ALWAYS;
+        if (rendering()) {
+          soam_[i] = 0xff;
+        }
+        co_await SUSPEND_ALWAYS;
       }
     } else {
       for (int i = 0; i < 64; i++) {
-        SPRITE_LOOP_SUSPEND();
+        co_await SUSPEND_ALWAYS;
       }
     }
 
@@ -669,25 +693,24 @@ Coroutine Ppu::spr_loop() {
     if (scanline_ != PRE_RENDER_SCANLINE) {
       for (int i = 0, soam_index = 0; i < 256; i += 4) {
         uint8_t y = oam_[i];
-        SPRITE_LOOP_SUSPEND();
-        soam_[soam_index] = y;
-        SPRITE_LOOP_SUSPEND();
-        if (spr_y_in_range(y, scanline_, spr_height)) {
+        co_await SUSPEND_ALWAYS;
+        if (rendering()) {
+          soam_[soam_index] = y;
+        }
+        co_await SUSPEND_ALWAYS;
+        if (rendering() && spr_y_in_range(y, scanline_, spr_height)) {
           if (i == 0) {
             spr0_enabled = true;
           }
-          unsigned char tmp = oam_[i + 1];
-          SPRITE_LOOP_SUSPEND();
-          soam_[++soam_index] = tmp;
-          SPRITE_LOOP_SUSPEND();
-          tmp = oam_[i + 2];
-          SPRITE_LOOP_SUSPEND();
-          soam_[++soam_index] = tmp;
-          SPRITE_LOOP_SUSPEND();
-          tmp = oam_[i + 3];
-          SPRITE_LOOP_SUSPEND();
-          soam_[++soam_index] = tmp;
-          SPRITE_LOOP_SUSPEND();
+          co_await SUSPEND_ALWAYS;
+          soam_[++soam_index] = oam_[i + 1];
+          co_await SUSPEND_ALWAYS;
+          co_await SUSPEND_ALWAYS;
+          soam_[++soam_index] = oam_[i + 2];
+          co_await SUSPEND_ALWAYS;
+          co_await SUSPEND_ALWAYS;
+          soam_[++soam_index] = oam_[i + 3];
+          co_await SUSPEND_ALWAYS;
           ++soam_index;
 
           // TODO: implement "correct" buggy sprite overflow.
@@ -701,7 +724,7 @@ Coroutine Ppu::spr_loop() {
 
     // Leftover cycles from sprite evaluation are idle.
     while (dot_ != 257) {
-      SPRITE_LOOP_SUSPEND();
+      co_await SUSPEND_ALWAYS;
     }
 
     // Cycles 257..320 are sprite tile fetches and render.
@@ -709,10 +732,10 @@ Coroutine Ppu::spr_loop() {
     spr_buf_.clear();
     for (int soam_index = 0; soam_index < 32; soam_index += 4) {
       for (int i = 0; i < 4; i++) {
-        SPRITE_LOOP_SUSPEND();
+        co_await SUSPEND_ALWAYS;
       }
       uint8_t y = soam_[soam_index];
-      if (spr_y_in_range(y, scanline_, spr_height)) {
+      if (rendering() && spr_y_in_range(y, scanline_, spr_height)) {
         uint8_t tile_idx = soam_[soam_index + 1];
         uint8_t attr     = soam_[soam_index + 2];
         uint8_t x        = soam_[soam_index + 3];
@@ -724,12 +747,12 @@ Coroutine Ppu::spr_loop() {
             spr_pt_base_addr()
         );
         uint8_t pt_lo = peek(addr_bus_);
-        SPRITE_LOOP_SUSPEND();
-        SPRITE_LOOP_SUSPEND();
+        co_await SUSPEND_ALWAYS;
+        co_await SUSPEND_ALWAYS;
         addr_bus_ += 8;
         uint8_t pt_hi = peek(addr_bus_);
-        SPRITE_LOOP_SUSPEND();
-        SPRITE_LOOP_SUSPEND();
+        co_await SUSPEND_ALWAYS;
+        co_await SUSPEND_ALWAYS;
         bool spr0 = spr0_enabled && soam_index == 0;
         spr_loop_render(x, attr, pt_lo, pt_hi, spr0);
       } else {
@@ -737,9 +760,14 @@ Coroutine Ppu::spr_loop() {
         // compatibility.
         addr_bus_ = spr_pt_base_addr();
         for (int i = 0; i < 4; i++) {
-          SPRITE_LOOP_SUSPEND();
+          co_await SUSPEND_ALWAYS;
         }
       }
+    }
+
+    // Remaining cycles are idle.
+    while (dot_ != 0) {
+      co_await SUSPEND_ALWAYS;
     }
   }
 }

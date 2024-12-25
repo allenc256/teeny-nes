@@ -26,13 +26,20 @@ public:
     std::exception_ptr exn_;
   };
 
-  Coroutine()                                            = delete;
-  Coroutine(Coroutine &&other) noexcept                  = delete;
-  Coroutine(const Coroutine &other)                      = delete;
-  Coroutine &operator=(const Coroutine &other)           = delete;
-  Coroutine &operator=(const Coroutine &&other) noexcept = delete;
+  Coroutine()                                  = delete;
+  Coroutine(Coroutine &&other) noexcept        = delete;
+  Coroutine(const Coroutine &other)            = delete;
+  Coroutine &operator=(const Coroutine &other) = delete;
 
   Coroutine(std::coroutine_handle<promise_type> handle) : handle_(handle) {}
+
+  Coroutine &operator=(const Coroutine &&other) noexcept {
+    if (handle_) {
+      handle_.destroy();
+    }
+    handle_ = std::move(other.handle_);
+    return *this;
+  }
 
   ~Coroutine() {
     if (handle_) {
