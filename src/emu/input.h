@@ -29,7 +29,7 @@ public:
 
   void set_controller(Controller *controller, int index);
 
-  void power_up();
+  void power_on();
   void reset();
 
   void    write_controller(uint8_t x);

@@ -47,7 +47,7 @@ static void run_test_rom(std::string_view name, int64_t max_cycles) {
 
   Nes nes;
   nes.load_cart(std::format("test_data/{}.nes", name));
-  nes.power_up();
+  nes.power_on();
 
   while (nes.cpu().cycles() < max_cycles) {
     auto label = labels.find(nes.cpu().registers().PC);

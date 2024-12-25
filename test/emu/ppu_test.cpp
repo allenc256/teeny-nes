@@ -113,7 +113,7 @@ TEST(Ppu, ready) {
 
   Ppu ppu;
 
-  ppu.power_up();
+  ppu.power_on();
   ASSERT_EQ(0, ppu.cycles());
   ASSERT_FALSE(ppu.ready());
   for (int i = 0; i < cycles_in_frame; i++) {

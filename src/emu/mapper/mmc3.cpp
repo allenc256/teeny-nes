@@ -17,11 +17,12 @@ Mmc3::Mmc3(const Header &header, Memory &&mem)
 
 void Mmc3::set_cpu(Cpu *cpu) { cpu_ = cpu; }
 void Mmc3::set_ppu(Ppu *ppu) { ppu_ = ppu; }
-void Mmc3::power_up() { reset(); }
+void Mmc3::power_on() { reset(); }
 
 void Mmc3::reset() {
   std::memset(&regs_, 0, sizeof(regs_));
   std::memset(&irq_, 0, sizeof(irq_));
+  std::memset(mem_.prg_ram.get(), 0, mem_.prg_ram_size);
   mirroring_ = orig_mirroring_;
 }
 

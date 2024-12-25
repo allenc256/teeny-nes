@@ -107,7 +107,7 @@ public:
 
   virtual void set_cpu(Cpu *) {}
   virtual void set_ppu(Ppu *) {}
-  virtual void power_up() {}
+  virtual void power_on() {}
   virtual void reset() {}
 
   virtual uint8_t peek_cpu(uint16_t addr)            = 0;

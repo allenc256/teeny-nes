@@ -45,7 +45,7 @@ uint16_t Ppu::spr_pt_base_addr() const {
   return (uint16_t)((regs_.PPUCTRL & PPUCTRL_SPR_ADDR) << 9);
 }
 
-void Ppu::power_up() {
+void Ppu::power_on() {
   regs_.PPUCTRL     = 0;
   regs_.PPUMASK     = 0;
   regs_.PPUSTATUS   = 0b10100000;

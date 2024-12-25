@@ -7,8 +7,14 @@
 
 Input::Input() : controllers_{0}, turbo_counter_(0), strobe_(false) {}
 
-void Input::power_up() { strobe_ = false; }
-void Input::reset() { strobe_ = false; }
+void Input::power_on() { reset(); }
+
+void Input::reset() {
+  shift_reg_[0]  = 0xff;
+  shift_reg_[1]  = 0xff;
+  turbo_counter_ = 0;
+  strobe_        = false;
+}
 
 void Input::set_controller(Controller *controller, int index) {
   if (!(index >= 0 && index < 2)) {

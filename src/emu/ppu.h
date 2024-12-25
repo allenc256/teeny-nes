@@ -92,7 +92,7 @@ public:
   void    poke(uint16_t addr, uint8_t x);
   uint8_t peek(uint16_t addr);
 
-  void power_up();
+  void power_on();
   void reset();
   void step();
 

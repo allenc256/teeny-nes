@@ -3,31 +3,33 @@
 #include "src/emu/cycles.h"
 #include "src/emu/nes.h"
 
-Nes::Nes() : powered_up_(false) {
+Nes::Nes() : powered_on_(false) {
   cpu_.set_apu(&apu_);
   cpu_.set_ppu(&ppu_);
   cpu_.set_input(&input_);
   ppu_.set_cpu(&cpu_);
 }
 
-void Nes::power_up() {
+void Nes::power_on() {
   if (!cart_) {
     throw std::runtime_error("cannot power up without loading cart first");
   }
-  if (powered_up_) {
+  if (powered_on_) {
     throw std::runtime_error("system already powered up");
   }
 
-  cart_->power_up();
-  cpu_.power_up();
-  ppu_.power_up();
-  apu_.power_up();
-  input_.power_up();
-  powered_up_ = true;
+  cart_->power_on();
+  cpu_.power_on();
+  ppu_.power_on();
+  apu_.power_on();
+  input_.power_on();
+  powered_on_ = true;
 }
 
+void Nes::power_off() { powered_on_ = false; }
+
 void Nes::reset() {
-  if (!powered_up_) {
+  if (!powered_on_) {
     throw std::runtime_error("system hasn't been powered up yet");
   }
 
@@ -35,11 +37,11 @@ void Nes::reset() {
   cpu_.reset();
   ppu_.reset();
   apu_.reset();
-  input_.power_up();
+  input_.power_on();
 }
 
 void Nes::load_cart(std::string_view path) {
-  if (powered_up_) {
+  if (powered_on_) {
     throw std::runtime_error("cannot load cart when system is powered up");
   }
 

@@ -6,7 +6,7 @@
 
 class Apu {
 public:
-  void power_up() {
+  void power_on() {
     // no-op
   }
 

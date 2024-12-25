@@ -7,6 +7,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+FetchContent_Declare(
+  nfd
+  GIT_REPOSITORY https://github.com/btzy/nativefiledialog-extended.git
+  GIT_TAG v1.2.1
+)
+FetchContent_MakeAvailable(nfd)
+
 file(GLOB IMGUI_CORE_SOURCES CONFIGURE_DEPENDS
   ${imgui_SOURCE_DIR}/*.cpp
   ${imgui_SOURCE_DIR}/*.h)
@@ -40,6 +47,6 @@ add_library(teenynes_test_lib STATIC ${EMU_SOURCES})
 
 target_compile_options(teenynes PRIVATE ${CXX_FLAGS})
 target_compile_options(teenynes_test_lib PRIVATE ${CXX_FLAGS})
-target_link_libraries(teenynes PRIVATE ${SDL2_LIBRARIES})
+target_link_libraries(teenynes PRIVATE ${SDL2_LIBRARIES} nfd)
 target_include_directories(teenynes PRIVATE ${PROJECT_SOURCE_DIR})
 target_include_directories(teenynes_test_lib PUBLIC ${PROJECT_SOURCE_DIR})

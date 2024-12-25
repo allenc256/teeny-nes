@@ -162,7 +162,7 @@ public:
   void signal_IRQ() { irq_pending_ = true; }
   void clear_IRQ() { irq_pending_ = false; }
 
-  void power_up();
+  void power_on();
   void reset();
   void step();
 

@@ -1,6 +1,6 @@
+#include <cstring>
 #include <format>
 #include <fstream>
-#include <iostream>
 #include <stdexcept>
 
 #include "src/emu/mapper/uxrom.h"
@@ -11,10 +11,10 @@ UxRom::UxRom(const Header &header, Memory &&mem)
       curr_bank_(0),
       total_banks_(header.prg_rom_chunks()) {
   assert(total_banks_ > 0);
-  if (mem.prg_ram) {
-    throw std::runtime_error("PRG RAM not supported for this mapper");
-  }
 }
+
+void UxRom::power_on() { reset(); }
+void UxRom::reset() { std::memset(mem_.prg_ram.get(), 0, mem_.prg_ram_size); }
 
 static constexpr uint16_t CPU_BANK_0_START = 0x8000;
 static constexpr uint16_t CPU_BANK_1_START = 0xc000;

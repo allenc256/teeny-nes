@@ -6,7 +6,7 @@ class Mmc1 : public Cart {
 public:
   Mmc1(const Header &header, Memory &&mem);
 
-  void power_up() override;
+  void power_on() override;
   void reset() override;
 
   uint8_t peek_cpu(uint16_t addr) override;

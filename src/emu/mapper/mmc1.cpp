@@ -16,10 +16,11 @@ static constexpr uint16_t CHR_BANK_1_START = 0x1000;
 Mmc1::Mmc1([[maybe_unused]] const Header &header, Memory &&mem)
     : mem_(std::move(mem)) {}
 
-void Mmc1::power_up() { reset(); }
+void Mmc1::power_on() { reset(); }
 
 void Mmc1::reset() {
   std::memset(&regs_, 0, sizeof(regs_));
+  std::memset(mem_.prg_ram.get(), 0, mem_.prg_ram_size);
   regs_.shift   = SHIFT_REG_RESET_VAL;
   regs_.control = CONTROL_REG_RESET_VAL;
 }

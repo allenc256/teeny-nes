@@ -16,11 +16,12 @@ public:
   Input &input() { return input_; }
   Cart  *cart() { return cart_.get(); }
 
-  void power_up();
+  void power_on();
+  void power_off();
   void reset();
   void step();
   void step(int cpu_cycles);
-  bool is_powered_up() const { return powered_up_; }
+  bool is_powered_up() const { return powered_on_; }
 
   void load_cart(std::string_view path);
 
@@ -30,5 +31,5 @@ private:
   Apu                   apu_;
   Input                 input_;
   std::unique_ptr<Cart> cart_;
-  bool                  powered_up_;
+  bool                  powered_on_;
 };

@@ -8,7 +8,7 @@ public:
 
   void set_cpu(Cpu *cpu) override;
   void set_ppu(Ppu *ppu) override;
-  void power_up() override;
+  void power_on() override;
   void reset() override;
 
   uint8_t peek_cpu(uint16_t addr) override;

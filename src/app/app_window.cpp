@@ -17,8 +17,6 @@ AppWindow::AppWindow()
       game_window_(nes_, renderer_.get()),
       ppu_window_(nes_, renderer_.get()) {
   nes_.input().set_controller(&keyboard_, 0);
-  nes_.load_cart("test_roms/smb2.nes");
-  nes_.power_up();
 }
 
 void AppWindow::run() {
@@ -44,6 +42,10 @@ bool AppWindow::process_events() {
 }
 
 void AppWindow::step() {
+  if (!nes_.is_powered_up()) {
+    return;
+  }
+
   static constexpr int64_t cpu_hz     = 1789773;
   static constexpr int64_t max_cycles = cpu_hz / 10;
   using CpuCycles = std::chrono::duration<int64_t, std::ratio<1, cpu_hz>>;
@@ -109,6 +111,9 @@ void AppWindow::render_imgui() {
 void AppWindow::render_imgui_menu() {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("Debug")) {
+      if (ImGui::MenuItem("Open")) {
+        open_rom();
+      }
       ImGui::MenuItem("Pause", nullptr, &paused_, nes_.is_powered_up());
       ImGui::MenuItem(
           "Show X/Y Tooltip", nullptr, &show_xy_tooltip_, nes_.is_powered_up()
@@ -119,5 +124,15 @@ void AppWindow::render_imgui_menu() {
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();
+  }
+}
+
+void AppWindow::open_rom() {
+  nfdu8filteritem_t filters[1] = {{"NES ROMs", "nes"}};
+  auto              result     = nfd_.open_dialog(filters, 1);
+  if (result.has_value()) {
+    nes_.power_off();
+    nes_.load_cart(*result);
+    nes_.power_on();
   }
 }

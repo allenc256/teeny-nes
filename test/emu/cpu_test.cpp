@@ -36,7 +36,7 @@ TEST(Cpu, nestest) {
   cpu.set_cart(cart.get());
   cpu.set_apu(&apu);
   cpu.set_ppu(&ppu);
-  cpu.power_up();
+  cpu.power_on();
   cpu.registers().PC = 0xc000;
 
   std::string exp_line;
@@ -68,7 +68,7 @@ static void single_step_test(const nlohmann::json &test_data) {
   Cpu     cpu;
 
   cpu.set_test_ram(test_ram);
-  cpu.power_up();
+  cpu.power_on();
 
   auto &regs  = cpu.registers();
   auto &init  = test_data["initial"];

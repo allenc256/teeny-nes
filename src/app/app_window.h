@@ -5,6 +5,7 @@
 #include "src/app/game_window.h"
 #include "src/app/imgui.h"
 #include "src/app/keyboard.h"
+#include "src/app/nfd.h"
 #include "src/app/ppu_window.h"
 #include "src/app/sdl.h"
 #include "src/emu/nes.h"
@@ -23,6 +24,7 @@ private:
   void render();
   void render_imgui();
   void render_imgui_menu();
+  void open_rom();
 
   Nes                nes_;
   KeyboardController keyboard_;
@@ -32,6 +34,7 @@ private:
   bool show_ppu_window_;
   bool show_xy_tooltip_;
 
+  Nfd            nfd_;
   SDLRes         sdl_;
   SDLWindowRes   window_;
   SDLRendererRes renderer_;

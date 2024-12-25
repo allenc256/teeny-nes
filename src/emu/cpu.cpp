@@ -361,7 +361,7 @@ Cpu::Cpu()
       jump_(false),
       test_ram_(nullptr) {}
 
-void Cpu::power_up() {
+void Cpu::power_on() {
   regs_.A          = 0;
   regs_.X          = 0;
   regs_.Y          = 0;

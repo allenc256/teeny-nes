@@ -1,3 +1,4 @@
+#include <cstring>
 #include <format>
 #include <fstream>
 #include <iostream>
@@ -10,6 +11,9 @@ static constexpr uint16_t PRG_ROM_MASK_256  = 0b0111111111111111;
 static constexpr uint16_t PATTERN_TABLE_END = 0x2000;
 static constexpr uint16_t NAME_TABLE_END    = 0x3000;
 static constexpr uint16_t UNUSED_END        = 0x3f00;
+
+void NRom::power_on() { reset(); }
+void NRom::reset() { std::memset(mem_.prg_ram.get(), 0, mem_.prg_ram_size); }
 
 NRom::NRom(const Header &header, Memory &&mem)
     : mem_(std::move(mem)),
