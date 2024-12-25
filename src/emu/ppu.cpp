@@ -481,14 +481,14 @@ void Ppu::bg_loop_shift_regs() {
 
 #define SUSPEND_BG_LOOP()                                                      \
   co_await std::suspend_always();                                              \
-  if (dot_ == 0 || !bg_rendering()) {                                          \
+  if (dot_ == 0 || !rendering()) {                                             \
     goto bg_loop_reset;                                                        \
   }
 
 Coroutine Ppu::bg_loop() {
   while (true) {
   bg_loop_reset:
-    while (dot_ != 0 || !bg_rendering()) {
+    while (dot_ != 0 || !rendering()) {
       co_await std::suspend_always();
     }
 
