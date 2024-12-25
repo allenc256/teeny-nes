@@ -10,9 +10,7 @@
 static constexpr int SCANLINE_MAX_CYCLES = 341;
 
 Ppu::Ppu()
-    : bg_loop_(bg_loop()),
-      spr_loop_(spr_loop()),
-      cart_(nullptr),
+    : cart_(nullptr),
       cpu_(nullptr),
       scanline_(0),
       dot_(0),
@@ -67,6 +65,8 @@ void Ppu::power_up() {
   cycles_           = 0;
   frames_           = 0;
   ready_            = false;
+  bg_loop_          = bg_loop();
+  spr_loop_         = spr_loop();
 
   std::memset(oam_, 0, sizeof(oam_));
   std::memset(soam_, 0, sizeof(soam_));
