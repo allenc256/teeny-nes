@@ -1,3 +1,4 @@
+#include <SDL_events.h>
 #include <SDL_keyboard.h>
 
 #include "src/app/keyboard.h"
@@ -16,6 +17,7 @@ static constexpr SDL_Scancode KEYMAP[] = {
 };
 
 int KeyboardController::poll() {
+  SDL_PumpEvents();
   const Uint8 *states = SDL_GetKeyboardState(NULL);
   int          result = 0;
   for (int i = 0; i < 10; i++) {
