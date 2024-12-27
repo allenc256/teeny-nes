@@ -8,6 +8,7 @@ Nes::Nes() : powered_on_(false) {
   cpu_.set_ppu(&ppu_);
   cpu_.set_input(&input_);
   ppu_.set_cpu(&cpu_);
+  apu_.set_cpu(&cpu_);
 }
 
 void Nes::power_on() {
@@ -59,6 +60,10 @@ void Nes::step() {
   int ppu_catchup = (int)(cpu_to_ppu_cycles(cpu_.cycles()) - ppu_.cycles());
   for (int i = 0; i < ppu_catchup; i++) {
     ppu_.step();
+  }
+  int apu_catchup = (int)(cpu_.cycles() - apu_.cycles());
+  for (int i = 0; i < apu_catchup; i++) {
+    apu_.step();
   }
 }
 

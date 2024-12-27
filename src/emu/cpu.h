@@ -12,6 +12,12 @@ class Input;
 
 class Cpu {
 public:
+  enum IrqSource : uint8_t {
+    APU_DMC           = 1 << 0,
+    APU_FRAME_COUNTER = 1 << 1,
+    EXTERNAL          = 1 << 2,
+  };
+
   enum Flags : uint8_t {
     C_FLAG     = 1u << 0,
     Z_FLAG     = 1u << 1,
@@ -159,8 +165,9 @@ public:
   uint16_t pop16();
 
   void signal_NMI() { nmi_pending_ = true; }
-  void signal_IRQ() { irq_pending_ = true; }
-  void clear_IRQ() { irq_pending_ = false; }
+  void signal_IRQ(IrqSource source) { irq_pending_ |= source; }
+  void clear_IRQ(IrqSource source) { irq_pending_ &= ~source; }
+  bool pending_IRQ(IrqSource source) { return irq_pending_ & source; }
 
   void power_on();
   void reset();
@@ -280,9 +287,6 @@ private:
   static constexpr uint16_t PPU_REGS_END  = 0x4000;
   static constexpr uint16_t PPU_OAMDMA    = 0x4014;
 
-  static constexpr uint16_t APU_CHAN_END = 0x4014;
-  static constexpr uint16_t APU_STATUS   = 0x4015;
-
   static constexpr uint16_t IO_JOY1 = 0x4016;
   static constexpr uint16_t IO_JOY2 = 0x4017;
 
@@ -296,7 +300,7 @@ private:
   bool      oops_;
   bool      jump_;
   bool      nmi_pending_;
-  bool      irq_pending_;
+  uint8_t   irq_pending_;
   bool      oam_dma_pending_;
   uint8_t  *test_ram_; // single-step tests
 };

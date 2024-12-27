@@ -75,7 +75,7 @@ void Mmc3::poke_cpu(uint16_t addr, uint8_t x) {
   default: // 0xe000..0xffff
     if (even) {
       irq_.enabled = false;
-      cpu_->clear_IRQ();
+      cpu_->clear_IRQ(Cpu::IrqSource::EXTERNAL);
     } else {
       irq_.enabled = true;
     }
@@ -211,6 +211,6 @@ void Mmc3::clock_IRQ_counter() {
     irq_.counter--;
   }
   if (irq_.counter == 0 && irq_.enabled) {
-    cpu_->signal_IRQ();
+    cpu_->signal_IRQ(Cpu::IrqSource::EXTERNAL);
   }
 }

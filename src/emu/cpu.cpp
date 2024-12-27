@@ -369,7 +369,7 @@ void Cpu::power_on() {
   regs_.S          = 0xfd;
   regs_.P          = I_FLAG | DUMMY_FLAG;
   nmi_pending_     = false;
-  irq_pending_     = false;
+  irq_pending_     = 0;
   oam_dma_pending_ = false;
   cycles_          = RESET_CYCLES;
   std::memset(ram_, 0, sizeof(ram_));
@@ -380,10 +380,12 @@ void Cpu::reset() {
   regs_.S -= 3;
   regs_.P |= I_FLAG;
   nmi_pending_     = false;
-  irq_pending_     = false;
+  irq_pending_     = 0;
   oam_dma_pending_ = false;
   cycles_          = RESET_CYCLES;
 }
+
+static constexpr uint8_t open_bus() { return 0; }
 
 uint8_t Cpu::peek(uint16_t addr) {
   if (test_ram_) {
@@ -402,20 +404,15 @@ uint8_t Cpu::peek(uint16_t addr) {
     case PPU_PPUDATA: return ppu_->read_PPUDATA();
     default: throw std::runtime_error("unreachable");
     }
-  } else if (addr < APU_CHAN_END) {
-    return 0; // TODO: implement APU
   } else if (addr >= Cart::CPU_ADDR_START) {
     return cart_->peek_cpu(addr);
   } else {
     switch (addr) {
+    case 0x4015: return apu_->read_4015();
     case IO_JOY1: return input_->read_controller(0);
     case IO_JOY2: return input_->read_controller(1);
-    case APU_STATUS: return 0; // TODO: implement APU_STATUS
     case PPU_OAMDMA: return ppu_->read_OAMDMA();
-    default:
-      throw std::runtime_error(
-          std::format("unsupported address: peek(${:04X})", addr)
-      );
+    default: return open_bus();
     }
   }
 }
@@ -443,24 +440,23 @@ void Cpu::poke(uint16_t addr, uint8_t x) {
     case PPU_PPUDATA: ppu_->write_PPUDATA(x); break;
     default: throw std::runtime_error("unreachable");
     }
-  } else if (addr < APU_CHAN_END) {
-    // TODO: implement APU
   } else if (addr >= Cart::CPU_ADDR_START) {
     cart_->poke_cpu(addr, x);
   } else {
     switch (addr) {
-    case IO_JOY1: input_->write_controller(x);
-    case IO_JOY2: break;    // TODO: implement APU
-    case APU_STATUS: break; // TODO: implement APU
+    case IO_JOY1: input_->write_controller(x); break;
+    case 0x4000: apu_->write_4000(x); break;
+    case 0x4001: apu_->write_4001(x); break;
+    case 0x4002: apu_->write_4002(x); break;
+    case 0x4003: apu_->write_4003(x); break;
+    case 0x4015: apu_->write_4015(x); break;
+    case 0x4017: apu_->write_4017(x); break;
     case PPU_OAMDMA: {
       ppu_->write_OAMDMA(x);
       oam_dma_pending_ = true;
       break;
     }
-    default:
-      throw std::runtime_error(
-          std::format("unsupported address: poke(${:04X}, {:02X})", addr, x)
-      );
+    default: break; // unmapped
     }
   }
 }
@@ -509,7 +505,7 @@ void Cpu::step() {
     // certain instructions (SEI, CLI, or PLP).
     step_IRQ();
     cycles_ += IRQ_CYCLES;
-    irq_pending_ = false;
+    irq_pending_ = 0;
     return;
   }
 
