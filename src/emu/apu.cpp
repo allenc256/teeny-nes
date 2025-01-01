@@ -128,15 +128,15 @@ void Apu::step_frame_counter() {
     return;
   }
 
-  bool should_clock_hf, should_signal_IRQ, should_reset;
+  bool should_clock_hf, should_signal_IRQ, should_reset_next_step;
   if (!fc_.mode) {
-    should_clock_hf   = fc_.next_step & 1;
-    should_signal_IRQ = fc_.next_step == 3;
-    should_reset      = fc_.next_step == 3;
+    should_clock_hf        = fc_.next_step & 1;
+    should_signal_IRQ      = fc_.next_step == 3;
+    should_reset_next_step = fc_.next_step == 3;
   } else {
-    should_clock_hf   = fc_.next_step == 1 || fc_.next_step == 4;
-    should_signal_IRQ = false;
-    should_reset      = fc_.next_step == 4;
+    should_clock_hf        = fc_.next_step == 1 || fc_.next_step == 4;
+    should_signal_IRQ      = false;
+    should_reset_next_step = fc_.next_step == 4;
   }
 
   clock_quarter_frame();
@@ -146,8 +146,7 @@ void Apu::step_frame_counter() {
   if (should_signal_IRQ) {
     cpu_->signal_IRQ(Cpu::IrqSource::APU_FRAME_COUNTER);
   }
-
-  if (should_reset) {
+  if (should_reset_next_step) {
     fc_.next_step = 0;
   } else {
     fc_.next_step++;

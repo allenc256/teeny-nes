@@ -72,3 +72,22 @@ void clear_texture(SDL_Texture *texture, int height) {
   std::memset(pixels, 0, pitch * height);
   SDL_UnlockTexture(texture);
 }
+
+SDLAudioDeviceRes::SDLAudioDeviceRes() {
+  SDL_AudioSpec audio_spec;
+  SDL_zero(audio_spec);
+  audio_spec.freq     = 44100;
+  audio_spec.format   = AUDIO_U16SYS;
+  audio_spec.channels = 1;
+  audio_spec.samples  = 1024;
+  audio_spec.callback = NULL;
+
+  device_ = SDL_OpenAudioDevice(NULL, 0, &audio_spec, NULL, 0);
+  if (!device_) {
+    throw std::runtime_error(
+        std::format("failed to open audio device: {}", SDL_GetError())
+    );
+  }
+}
+
+SDLAudioDeviceRes::~SDLAudioDeviceRes() { SDL_CloseAudioDevice(device_); }

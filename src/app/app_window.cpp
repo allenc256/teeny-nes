@@ -20,7 +20,6 @@ AppWindow::AppWindow()
 }
 
 void AppWindow::run() {
-  prev_ts_ = std::chrono::high_resolution_clock::now();
   while (process_events()) {
     step();
     render();
@@ -42,22 +41,13 @@ bool AppWindow::process_events() {
 }
 
 void AppWindow::step() {
-  if (!nes_.is_powered_up()) {
+  if (!nes_.is_powered_on()) {
     return;
   }
-
-  static constexpr int64_t cpu_hz     = 1789773;
-  static constexpr int64_t max_cycles = cpu_hz / 10;
-  using CpuCycles = std::chrono::duration<int64_t, std::ratio<1, cpu_hz>>;
-
-  auto now     = std::chrono::high_resolution_clock::now();
-  auto elapsed = std::chrono::duration_cast<CpuCycles>(now - prev_ts_);
-  int  cycles  = (int)std::min(elapsed.count(), max_cycles);
-  prev_ts_     = now;
-
-  if (!paused_) {
-    nes_.step(cycles);
+  if (paused_) {
+    return;
   }
+  timer_.run(nes_);
 }
 
 void AppWindow::render() {
@@ -66,7 +56,7 @@ void AppWindow::render() {
     return;
   }
 
-  show_ppu_window_ &= nes_.is_powered_up();
+  show_ppu_window_ &= nes_.is_powered_on();
 
   render_imgui();
 
@@ -98,7 +88,7 @@ void AppWindow::render_imgui() {
 
   render_imgui_menu();
 
-  if (nes_.is_powered_up()) {
+  if (nes_.is_powered_on()) {
     game_window_.render(show_xy_tooltip_);
   }
   if (show_ppu_window_) {
@@ -114,12 +104,16 @@ void AppWindow::render_imgui_menu() {
       if (ImGui::MenuItem("Open")) {
         open_rom();
       }
-      ImGui::MenuItem("Pause", nullptr, &paused_, nes_.is_powered_up());
+      bool prev_paused = paused_;
+      ImGui::MenuItem("Pause", nullptr, &paused_, nes_.is_powered_on());
+      if (prev_paused && !paused_) {
+        timer_.reset();
+      }
       ImGui::MenuItem(
-          "Show X/Y Tooltip", nullptr, &show_xy_tooltip_, nes_.is_powered_up()
+          "Show X/Y Tooltip", nullptr, &show_xy_tooltip_, nes_.is_powered_on()
       );
       ImGui::MenuItem(
-          "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_up()
+          "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_on()
       );
       ImGui::EndMenu();
     }
@@ -134,5 +128,6 @@ void AppWindow::open_rom() {
     nes_.power_off();
     nes_.load_cart(*result);
     nes_.power_on();
+    timer_.reset();
   }
 }

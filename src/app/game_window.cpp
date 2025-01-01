@@ -25,7 +25,7 @@ static void render_tooltip() {
 }
 
 void GameWindow::render(bool show_tooltip) {
-  if (!nes_.is_powered_up()) {
+  if (!nes_.is_powered_on()) {
     assert(false);
     return;
   }

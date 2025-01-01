@@ -9,6 +9,7 @@
 #include "src/app/ppu_window.h"
 #include "src/app/sdl.h"
 #include "src/emu/nes.h"
+#include "src/emu/timer.h"
 
 class AppWindow {
 public:
@@ -28,7 +29,7 @@ private:
 
   Nes                nes_;
   KeyboardController keyboard_;
-  Timestamp          prev_ts_;
+  Timer              timer_;
   bool               paused_;
 
   bool show_ppu_window_;

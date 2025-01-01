@@ -66,10 +66,3 @@ void Nes::step() {
     apu_.step();
   }
 }
-
-void Nes::step(int cpu_cycles) {
-  int64_t target = cpu_.cycles() + cpu_cycles;
-  while (cpu_.cycles() < target) {
-    step();
-  }
-}

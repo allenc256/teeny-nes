@@ -20,8 +20,7 @@ public:
   void power_off();
   void reset();
   void step();
-  void step(int cpu_cycles);
-  bool is_powered_up() const { return powered_on_; }
+  bool is_powered_on() const { return powered_on_; }
 
   void load_cart(std::string_view path);
 

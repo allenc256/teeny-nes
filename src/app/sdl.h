@@ -1,5 +1,7 @@
 #pragma once
 
+#include <SDL_audio.h>
+
 struct SDL_Window;
 struct SDL_Renderer;
 struct SDL_Texture;
@@ -43,3 +45,14 @@ private:
 };
 
 void clear_texture(SDL_Texture *texture, int height);
+
+class SDLAudioDeviceRes {
+public:
+  SDLAudioDeviceRes();
+  ~SDLAudioDeviceRes();
+
+  SDL_AudioDeviceID get() const { return device_; }
+
+private:
+  SDL_AudioDeviceID device_;
+};

@@ -11,7 +11,7 @@ PpuWindow::PpuWindow(Nes &nes, SDL_Renderer *renderer)
       nt_tex_(renderer, 512, 480) {}
 
 void PpuWindow::render() {
-  if (!nes_.is_powered_up()) {
+  if (!nes_.is_powered_on()) {
     assert(false);
     return;
   }
