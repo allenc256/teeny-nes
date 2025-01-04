@@ -33,6 +33,7 @@ static constexpr int64_t OUTPUT_HZ = 44100;
 void Apu::power_on() {
   pulse_1_.power_on();
   pulse_2_.power_on();
+  triangle_.power_on();
   out_.reset();
   fc_.mode        = false;
   fc_.irq_enabled = true;
@@ -45,6 +46,7 @@ void Apu::power_on() {
 void Apu::reset() {
   pulse_1_.reset();
   pulse_2_.reset();
+  triangle_.reset();
   out_.reset();
   fc_.mode        = false;
   fc_.irq_enabled = true;
@@ -63,6 +65,10 @@ void Apu::write_4004(uint8_t x) { pulse_2_.write_R0(x); }
 void Apu::write_4005(uint8_t x) { pulse_2_.write_R1(x); }
 void Apu::write_4006(uint8_t x) { pulse_2_.write_R2(x); }
 void Apu::write_4007(uint8_t x) { pulse_2_.write_R3(x); }
+
+void Apu::write_4008(uint8_t x) { triangle_.write_4008(x); }
+void Apu::write_400A(uint8_t x) { triangle_.write_400A(x); }
+void Apu::write_400B(uint8_t x) { triangle_.write_400B(x); }
 
 static int get_fc_cycles_left(int next_step, bool mode) {
   if (!mode) {
@@ -108,6 +114,7 @@ void Apu::write_4017(uint8_t x) {
 void Apu::write_4015(uint8_t x) {
   pulse_1_.set_enabled(get_bit<0>(x));
   pulse_2_.set_enabled(get_bit<1>(x));
+  triangle_.set_enabled(get_bit<2>(x));
   // TODO: other channels & DMC
 }
 
@@ -120,6 +127,9 @@ uint8_t Apu::read_4015() {
   if (pulse_2_.length_counter() != 0) {
     output |= bit(1);
   }
+  if (triangle_.length_counter() != 0) {
+    output |= bit(2);
+  }
   if (cpu_->pending_IRQ(Cpu::IrqSource::APU_FRAME_COUNTER)) {
     output |= bit(6);
   }
@@ -130,6 +140,7 @@ uint8_t Apu::read_4015() {
 }
 
 void Apu::step() {
+  triangle_.step();
   if (cycles_ & 1) {
     pulse_1_.step();
     pulse_2_.step();
@@ -141,7 +152,9 @@ void Apu::step() {
 
   sample_counter_ -= OUTPUT_HZ;
   if (sample_counter_ <= 0) {
-    out_.write((pulse_1_.output() + pulse_2_.output()) * 0.00752f);
+    float mixed_output = triangle_.output() * 0.00851f +
+                         (pulse_1_.output() + pulse_2_.output()) * 0.00752f;
+    out_.write(mixed_output);
     sample_counter_ += APU_HZ;
   }
 }
@@ -182,12 +195,14 @@ void Apu::step_frame_counter() {
 void Apu::clock_quarter_frame() {
   pulse_1_.clock_quarter_frame();
   pulse_2_.clock_quarter_frame();
+  triangle_.clock_quarter_frame();
   // TODO: other channels
 }
 
 void Apu::clock_half_frame() {
   pulse_1_.clock_half_frame();
   pulse_2_.clock_half_frame();
+  triangle_.clock_half_frame();
   // TODO: other channels
 }
 
@@ -336,6 +351,96 @@ bool PulseWave::is_sweep_forcing_silence() {
   } else {
     return false;
   }
+}
+
+void TriangleWave::power_on() { reset(); }
+
+void TriangleWave::reset() {
+  enabled_        = false;
+  tri_step_       = 0;
+  length_enabled_ = false;
+  length_counter_ = 0;
+  linear_control_ = false;
+  linear_reload_  = false;
+  linear_counter_ = 0;
+  linear_load_    = 0;
+  freq_counter_   = 0;
+  freq_timer_     = 0;
+}
+
+void TriangleWave::step() {
+  bool ultrasonic = freq_timer_ < 2 && freq_counter_ == 0;
+  bool clock_triunit;
+  if (length_counter_ == 0 || linear_counter_ == 0 || ultrasonic) {
+    clock_triunit = false;
+  } else {
+    clock_triunit = true;
+  }
+
+  if (clock_triunit) {
+    if (freq_counter_ > 0) {
+      freq_counter_--;
+    } else {
+      freq_counter_ = freq_timer_;
+      tri_step_     = (tri_step_ + 1) & 0x1f;
+    }
+  }
+}
+
+void TriangleWave::clock_quarter_frame() {
+  if (linear_reload_) {
+    linear_counter_ = linear_load_;
+  } else if (linear_counter_ > 0) {
+    linear_counter_--;
+  }
+
+  if (!linear_control_) {
+    linear_reload_ = false;
+  }
+}
+
+void TriangleWave::clock_half_frame() {
+  if (length_enabled_ && length_counter_ > 0) {
+    length_counter_--;
+  }
+}
+
+float TriangleWave::output() {
+  bool ultrasonic = freq_timer_ < 2 && freq_counter_ == 0;
+  if (ultrasonic) {
+    return 7.5;
+  } else if (tri_step_ & 0x10) {
+    return tri_step_ ^ 0x1f;
+  } else {
+    return tri_step_;
+  }
+}
+
+void TriangleWave::set_enabled(bool enabled) {
+  enabled_ = enabled;
+  if (!enabled) {
+    length_counter_ = 0;
+  }
+}
+
+void TriangleWave::write_4008(uint8_t x) {
+  linear_control_ = get_bit<7>(x);
+  length_enabled_ = !linear_control_;
+  linear_load_    = get_bits<0, 6>(x);
+}
+
+void TriangleWave::write_400A(uint8_t x) {
+  freq_timer_ = (freq_timer_ & 0xff00) | x;
+}
+
+void TriangleWave::write_400B(uint8_t x) {
+  freq_timer_ = (uint16_t)((freq_timer_ & 0xff) | (get_bits<0, 2>(x) << 8));
+
+  if (enabled_) {
+    length_counter_ = LENGTH_TABLE[get_bits<3, 7>(x)];
+  }
+
+  linear_reload_ = true;
 }
 
 void OutputBuffer::reset() {

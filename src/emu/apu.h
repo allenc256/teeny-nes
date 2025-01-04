@@ -54,6 +54,40 @@ private:
   uint16_t freq_timer_;
 };
 
+class TriangleWave {
+public:
+  void  power_on();
+  void  reset();
+  void  step();
+  void  clock_quarter_frame();
+  void  clock_half_frame();
+  float output();
+
+  bool    enabled() const { return enabled_; }
+  uint8_t length_counter() const { return length_counter_; }
+  void    set_enabled(bool enabled);
+
+  void write_4008(uint8_t x);
+  void write_400A(uint8_t x);
+  void write_400B(uint8_t x);
+
+private:
+  bool enabled_;
+
+  uint8_t tri_step_;
+
+  bool    length_enabled_;
+  uint8_t length_counter_;
+
+  bool    linear_control_;
+  bool    linear_reload_;
+  uint8_t linear_counter_;
+  uint8_t linear_load_;
+
+  uint16_t freq_counter_;
+  uint16_t freq_timer_;
+};
+
 class OutputBuffer {
 public:
   static constexpr size_t CAPACITY = 2048;
@@ -90,6 +124,10 @@ public:
   void write_4006(uint8_t x);
   void write_4007(uint8_t x);
 
+  void write_4008(uint8_t x);
+  void write_400A(uint8_t x);
+  void write_400B(uint8_t x);
+
   void write_4015(uint8_t x);
   void write_4017(uint8_t x);
 
@@ -110,6 +148,7 @@ private:
   Cpu         *cpu_     = nullptr;
   PulseWave    pulse_1_ = {true};
   PulseWave    pulse_2_ = {false};
+  TriangleWave triangle_;
   FrameCounter fc_;
   OutputBuffer out_;
   int64_t      cycles_;
