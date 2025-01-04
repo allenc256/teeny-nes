@@ -20,8 +20,11 @@ AppWindow::AppWindow()
 }
 
 void AppWindow::run() {
+  SDL_PauseAudioDevice(audio_dev_.get(), 0);
+
   while (process_events()) {
     step();
+    queue_audio();
     render();
   }
 }
@@ -129,5 +132,26 @@ void AppWindow::open_rom() {
     nes_.load_cart(*result);
     nes_.power_on();
     timer_.reset();
+  }
+}
+
+void AppWindow::queue_audio() {
+  auto &output = nes_.apu().output();
+  float samples[2048];
+  int   available = output.available();
+  assert(available <= 2048);
+  if (available == 0) {
+    return;
+  }
+
+  for (int i = 0; i < available; i++) {
+    samples[i] = output.read();
+  }
+
+  int ret = SDL_QueueAudio(audio_dev_.get(), samples, available * 4);
+  if (ret != 0) {
+    throw std::runtime_error(
+        std::format("audio failed to queue: {}", SDL_GetError())
+    );
   }
 }

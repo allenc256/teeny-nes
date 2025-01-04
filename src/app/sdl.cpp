@@ -5,8 +5,10 @@
 #include "sdl.h"
 
 SDLRes::SDLRes() {
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) !=
-      0) {
+  if (SDL_Init(
+          SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER |
+          SDL_INIT_GAMECONTROLLER
+      ) != 0) {
     throw std::runtime_error(
         std::format("failed to initialize SDL: {}", SDL_GetError())
     );
@@ -77,7 +79,7 @@ SDLAudioDeviceRes::SDLAudioDeviceRes() {
   SDL_AudioSpec audio_spec;
   SDL_zero(audio_spec);
   audio_spec.freq     = 44100;
-  audio_spec.format   = AUDIO_U16SYS;
+  audio_spec.format   = AUDIO_F32SYS;
   audio_spec.channels = 1;
   audio_spec.samples  = 1024;
   audio_spec.callback = NULL;

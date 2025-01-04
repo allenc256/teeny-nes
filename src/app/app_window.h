@@ -26,6 +26,7 @@ private:
   void render_imgui();
   void render_imgui_menu();
   void open_rom();
+  void queue_audio();
 
   Nes                nes_;
   KeyboardController keyboard_;
@@ -35,11 +36,12 @@ private:
   bool show_ppu_window_;
   bool show_xy_tooltip_;
 
-  Nfd            nfd_;
-  SDLRes         sdl_;
-  SDLWindowRes   window_;
-  SDLRendererRes renderer_;
-  ImguiRes       imgui_;
-  GameWindow     game_window_;
-  PpuWindow      ppu_window_;
+  Nfd               nfd_;
+  SDLRes            sdl_;
+  SDLWindowRes      window_;
+  SDLRendererRes    renderer_;
+  SDLAudioDeviceRes audio_dev_;
+  ImguiRes          imgui_;
+  GameWindow        game_window_;
+  PpuWindow         ppu_window_;
 };

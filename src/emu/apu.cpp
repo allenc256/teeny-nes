@@ -27,28 +27,42 @@ static constexpr uint8_t get_bits(uint8_t x) {
   return (x & bits(start_index, end_index)) >> start_index;
 }
 
+static constexpr int64_t APU_HZ    = 1789773;
+static constexpr int64_t OUTPUT_HZ = 44100;
+
 void Apu::power_on() {
   pulse_1_.power_on();
+  pulse_2_.power_on();
+  out_.reset();
   fc_.mode        = false;
   fc_.irq_enabled = true;
   fc_.next_step   = 0;
   fc_.cycles_left = 0;
   cycles_         = 0;
+  sample_counter_ = APU_HZ;
 }
 
 void Apu::reset() {
   pulse_1_.reset();
+  pulse_2_.reset();
+  out_.reset();
   fc_.mode        = false;
   fc_.irq_enabled = true;
   fc_.next_step   = 0;
   fc_.cycles_left = 0;
   cycles_         = 0;
+  sample_counter_ = APU_HZ;
 }
 
 void Apu::write_4000(uint8_t x) { pulse_1_.write_R0(x); }
 void Apu::write_4001(uint8_t x) { pulse_1_.write_R1(x); }
 void Apu::write_4002(uint8_t x) { pulse_1_.write_R2(x); }
 void Apu::write_4003(uint8_t x) { pulse_1_.write_R3(x); }
+
+void Apu::write_4004(uint8_t x) { pulse_2_.write_R0(x); }
+void Apu::write_4005(uint8_t x) { pulse_2_.write_R1(x); }
+void Apu::write_4006(uint8_t x) { pulse_2_.write_R2(x); }
+void Apu::write_4007(uint8_t x) { pulse_2_.write_R3(x); }
 
 static int get_fc_cycles_left(int next_step, bool mode) {
   if (!mode) {
@@ -93,6 +107,7 @@ void Apu::write_4017(uint8_t x) {
 
 void Apu::write_4015(uint8_t x) {
   pulse_1_.set_enabled(get_bit<0>(x));
+  pulse_2_.set_enabled(get_bit<1>(x));
   // TODO: other channels & DMC
 }
 
@@ -102,7 +117,9 @@ uint8_t Apu::read_4015() {
   if (pulse_1_.length_counter() != 0) {
     output |= bit(0);
   }
-
+  if (pulse_2_.length_counter() != 0) {
+    output |= bit(1);
+  }
   if (cpu_->pending_IRQ(Cpu::IrqSource::APU_FRAME_COUNTER)) {
     output |= bit(6);
   }
@@ -115,11 +132,18 @@ uint8_t Apu::read_4015() {
 void Apu::step() {
   if (cycles_ & 1) {
     pulse_1_.step();
+    pulse_2_.step();
   }
 
   step_frame_counter();
 
   cycles_++;
+
+  sample_counter_ -= OUTPUT_HZ;
+  if (sample_counter_ <= 0) {
+    out_.write((pulse_1_.output() + pulse_2_.output()) * 0.00752f);
+    sample_counter_ += APU_HZ;
+  }
 }
 
 void Apu::step_frame_counter() {
@@ -155,15 +179,15 @@ void Apu::step_frame_counter() {
   fc_.cycles_left = get_fc_cycles_left(fc_.next_step, fc_.mode);
 }
 
-float Apu::output() { return pulse_1_.output() / 15.0f; }
-
 void Apu::clock_quarter_frame() {
   pulse_1_.clock_quarter_frame();
+  pulse_2_.clock_quarter_frame();
   // TODO: other channels
 }
 
 void Apu::clock_half_frame() {
   pulse_1_.clock_half_frame();
+  pulse_2_.clock_half_frame();
   // TODO: other channels
 }
 
@@ -228,7 +252,7 @@ static constexpr uint8_t LENGTH_TABLE[] = {10,  254, 20, 2,  40, 4,  80, 6,
                                            192, 24,  72, 26, 16, 28, 32, 30};
 
 void PulseWave::write_R3(uint8_t x) {
-  freq_timer_ = (uint16_t)((freq_timer_ & 0xff) | (get_bits<0, 3>(x) << 8));
+  freq_timer_ = (uint16_t)((freq_timer_ & 0xff) | (get_bits<0, 2>(x) << 8));
 
   if (enabled_) {
     length_counter_ = LENGTH_TABLE[get_bits<3, 7>(x)];
@@ -304,7 +328,7 @@ uint8_t PulseWave::output() {
 }
 
 bool PulseWave::is_sweep_forcing_silence() {
-  if (freq_timer_ < 0) {
+  if (freq_timer_ < 8) {
     return true;
   } else if (!sweep_negate_ &&
              freq_timer_ + (freq_timer_ >> sweep_shift_) >= 0x800) {
@@ -312,4 +336,28 @@ bool PulseWave::is_sweep_forcing_silence() {
   } else {
     return false;
   }
+}
+
+void OutputBuffer::reset() {
+  written_ = 0;
+  read_    = 0;
+}
+
+int OutputBuffer::available() const {
+  return (int)std::min(written_ - read_, (int64_t)CAPACITY);
+}
+
+void OutputBuffer::write(float sample) {
+  static_assert(std::has_single_bit(CAPACITY));
+  buffer_[written_ & (CAPACITY - 1)] = sample;
+  written_++;
+}
+
+float OutputBuffer::read() {
+  if (written_ - read_ > (int64_t)CAPACITY) {
+    read_ = written_ - CAPACITY;
+  }
+  float result = buffer_[read_ & (CAPACITY - 1)];
+  read_++;
+  return result;
 }

@@ -54,21 +54,42 @@ private:
   uint16_t freq_timer_;
 };
 
+class OutputBuffer {
+public:
+  static constexpr size_t CAPACITY = 2048;
+
+  void  reset();
+  int   available() const;
+  void  write(float sample);
+  float read();
+
+private:
+  float   buffer_[CAPACITY];
+  int64_t written_;
+  int64_t read_;
+};
+
 class Apu {
 public:
   void set_cpu(Cpu *cpu) { cpu_ = cpu; }
 
-  void  power_on();
-  void  reset();
-  void  step();
-  float output();
+  void power_on();
+  void reset();
+  void step();
 
-  int64_t cycles() { return cycles_; }
+  OutputBuffer &output() { return out_; }
+  int64_t       cycles() { return cycles_; }
 
   void write_4000(uint8_t x);
   void write_4001(uint8_t x);
   void write_4002(uint8_t x);
   void write_4003(uint8_t x);
+
+  void write_4004(uint8_t x);
+  void write_4005(uint8_t x);
+  void write_4006(uint8_t x);
+  void write_4007(uint8_t x);
+
   void write_4015(uint8_t x);
   void write_4017(uint8_t x);
 
@@ -88,6 +109,9 @@ private:
 
   Cpu         *cpu_     = nullptr;
   PulseWave    pulse_1_ = {true};
+  PulseWave    pulse_2_ = {false};
   FrameCounter fc_;
+  OutputBuffer out_;
   int64_t      cycles_;
+  int64_t      sample_counter_;
 };
