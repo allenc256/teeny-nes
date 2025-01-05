@@ -456,6 +456,9 @@ void Cpu::poke(uint16_t addr, uint8_t x) {
     case 0x4008: apu_->write_4008(x); break;
     case 0x400a: apu_->write_400A(x); break;
     case 0x400b: apu_->write_400B(x); break;
+    case 0x400c: apu_->write_400C(x); break;
+    case 0x400e: apu_->write_400E(x); break;
+    case 0x400f: apu_->write_400F(x); break;
     case 0x4015: apu_->write_4015(x); break;
     case 0x4017: apu_->write_4017(x); break;
     case PPU_OAMDMA: {

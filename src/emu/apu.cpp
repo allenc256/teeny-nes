@@ -34,6 +34,7 @@ void Apu::power_on() {
   pulse_1_.power_on();
   pulse_2_.power_on();
   triangle_.power_on();
+  noise_.power_on();
   out_.reset();
   fc_.mode        = false;
   fc_.irq_enabled = true;
@@ -41,12 +42,14 @@ void Apu::power_on() {
   fc_.cycles_left = 0;
   cycles_         = 0;
   sample_counter_ = APU_HZ;
+  low_pass_       = 0;
 }
 
 void Apu::reset() {
   pulse_1_.reset();
   pulse_2_.reset();
   triangle_.reset();
+  noise_.reset();
   out_.reset();
   fc_.mode        = false;
   fc_.irq_enabled = true;
@@ -54,6 +57,7 @@ void Apu::reset() {
   fc_.cycles_left = 0;
   cycles_         = 0;
   sample_counter_ = APU_HZ;
+  low_pass_       = 0;
 }
 
 void Apu::write_4000(uint8_t x) { pulse_1_.write_R0(x); }
@@ -69,6 +73,10 @@ void Apu::write_4007(uint8_t x) { pulse_2_.write_R3(x); }
 void Apu::write_4008(uint8_t x) { triangle_.write_4008(x); }
 void Apu::write_400A(uint8_t x) { triangle_.write_400A(x); }
 void Apu::write_400B(uint8_t x) { triangle_.write_400B(x); }
+
+void Apu::write_400C(uint8_t x) { noise_.write_400C(x); }
+void Apu::write_400E(uint8_t x) { noise_.write_400E(x); }
+void Apu::write_400F(uint8_t x) { noise_.write_400F(x); }
 
 static int get_fc_cycles_left(int next_step, bool mode) {
   if (!mode) {
@@ -115,6 +123,7 @@ void Apu::write_4015(uint8_t x) {
   pulse_1_.set_enabled(get_bit<0>(x));
   pulse_2_.set_enabled(get_bit<1>(x));
   triangle_.set_enabled(get_bit<2>(x));
+  noise_.set_enabled(get_bit<3>(x));
   // TODO: other channels & DMC
 }
 
@@ -130,6 +139,9 @@ uint8_t Apu::read_4015() {
   if (triangle_.length_counter() != 0) {
     output |= bit(2);
   }
+  if (noise_.length_counter() != 0) {
+    output |= bit(3);
+  }
   if (cpu_->pending_IRQ(Cpu::IrqSource::APU_FRAME_COUNTER)) {
     output |= bit(6);
   }
@@ -144,6 +156,7 @@ void Apu::step() {
   if (cycles_ & 1) {
     pulse_1_.step();
     pulse_2_.step();
+    noise_.step();
   }
 
   step_frame_counter();
@@ -153,8 +166,10 @@ void Apu::step() {
   sample_counter_ -= OUTPUT_HZ;
   if (sample_counter_ <= 0) {
     float mixed_output = triangle_.output() * 0.00851f +
-                         (pulse_1_.output() + pulse_2_.output()) * 0.00752f;
-    out_.write(mixed_output);
+                         (pulse_1_.output() + pulse_2_.output()) * 0.00752f +
+                         noise_.output() * 0.00494f;
+    low_pass_ = mixed_output * 0.7f + low_pass_ * 0.3f;
+    out_.write(low_pass_);
     sample_counter_ += APU_HZ;
   }
 }
@@ -196,6 +211,7 @@ void Apu::clock_quarter_frame() {
   pulse_1_.clock_quarter_frame();
   pulse_2_.clock_quarter_frame();
   triangle_.clock_quarter_frame();
+  noise_.clock_quarter_frame();
   // TODO: other channels
 }
 
@@ -203,6 +219,7 @@ void Apu::clock_half_frame() {
   pulse_1_.clock_half_frame();
   pulse_2_.clock_half_frame();
   triangle_.clock_half_frame();
+  noise_.clock_half_frame();
   // TODO: other channels
 }
 
@@ -210,9 +227,9 @@ static constexpr uint8_t DUTY_CYCLES[] = {
     0b01000000, 0b01100000, 0b01111000, 0b10011111
 };
 
-void PulseWave::power_on() { reset(); }
+void ApuPulse::power_on() { reset(); }
 
-void PulseWave::reset() {
+void ApuPulse::reset() {
   enabled_          = false;
   duty_cycle_       = 0;
   duty_bit_         = 0;
@@ -234,14 +251,14 @@ void PulseWave::reset() {
   freq_timer_       = 0;
 }
 
-void PulseWave::set_enabled(bool enabled) {
+void ApuPulse::set_enabled(bool enabled) {
   enabled_ = enabled;
   if (!enabled) {
     length_counter_ = 0;
   }
 }
 
-void PulseWave::write_R0(uint8_t x) {
+void ApuPulse::write_R0(uint8_t x) {
   duty_cycle_     = DUTY_CYCLES[get_bits<6, 7>(x)];
   decay_loop_     = get_bit<5>(x);
   length_enabled_ = !get_bit<5>(x);
@@ -249,7 +266,7 @@ void PulseWave::write_R0(uint8_t x) {
   decay_vol_      = get_bits<0, 3>(x);
 }
 
-void PulseWave::write_R1(uint8_t x) {
+void ApuPulse::write_R1(uint8_t x) {
   sweep_timer_   = get_bits<4, 6>(x);
   sweep_negate_  = get_bit<3>(x);
   sweep_shift_   = get_bits<0, 2>(x);
@@ -257,16 +274,14 @@ void PulseWave::write_R1(uint8_t x) {
   sweep_enabled_ = get_bit<7>(x) && sweep_shift_ != 0;
 }
 
-void PulseWave::write_R2(uint8_t x) {
-  freq_timer_ = (freq_timer_ & 0xff00) | x;
-}
+void ApuPulse::write_R2(uint8_t x) { freq_timer_ = (freq_timer_ & 0xff00) | x; }
 
 static constexpr uint8_t LENGTH_TABLE[] = {10,  254, 20, 2,  40, 4,  80, 6,
                                            160, 8,   60, 10, 14, 12, 26, 14,
                                            12,  16,  24, 18, 48, 20, 96, 22,
                                            192, 24,  72, 26, 16, 28, 32, 30};
 
-void PulseWave::write_R3(uint8_t x) {
+void ApuPulse::write_R3(uint8_t x) {
   freq_timer_ = (uint16_t)((freq_timer_ & 0xff) | (get_bits<0, 2>(x) << 8));
 
   if (enabled_) {
@@ -278,7 +293,7 @@ void PulseWave::write_R3(uint8_t x) {
   decay_reset_flag_ = true;
 }
 
-void PulseWave::step() {
+void ApuPulse::step() {
   if (freq_counter_ > 0) {
     freq_counter_--;
   } else {
@@ -287,9 +302,11 @@ void PulseWave::step() {
   }
 }
 
-void PulseWave::clock_quarter_frame() {
+#include <format>
+
+void ApuPulse::clock_quarter_frame() {
   if (decay_reset_flag_) {
-    decay_reset_flag_ = true;
+    decay_reset_flag_ = false;
     decay_hidden_vol_ = 0xf;
     decay_counter_    = decay_vol_;
   } else {
@@ -306,7 +323,7 @@ void PulseWave::clock_quarter_frame() {
   }
 }
 
-void PulseWave::clock_half_frame() {
+void ApuPulse::clock_half_frame() {
   if (sweep_reload_) {
     sweep_counter_ = sweep_timer_;
     // TODO: handle edge case here for APU sweep
@@ -329,7 +346,7 @@ void PulseWave::clock_half_frame() {
   }
 }
 
-uint8_t PulseWave::output() {
+uint8_t ApuPulse::output() {
   if ((duty_cycle_ & duty_bit_) && length_counter_ != 0 &&
       !is_sweep_forcing_silence()) {
     if (decay_enabled_) {
@@ -342,7 +359,7 @@ uint8_t PulseWave::output() {
   }
 }
 
-bool PulseWave::is_sweep_forcing_silence() {
+bool ApuPulse::is_sweep_forcing_silence() {
   if (freq_timer_ < 8) {
     return true;
   } else if (!sweep_negate_ &&
@@ -353,9 +370,9 @@ bool PulseWave::is_sweep_forcing_silence() {
   }
 }
 
-void TriangleWave::power_on() { reset(); }
+void ApuTriangle::power_on() { reset(); }
 
-void TriangleWave::reset() {
+void ApuTriangle::reset() {
   enabled_        = false;
   tri_step_       = 0;
   length_enabled_ = false;
@@ -368,7 +385,7 @@ void TriangleWave::reset() {
   freq_timer_     = 0;
 }
 
-void TriangleWave::step() {
+void ApuTriangle::step() {
   bool ultrasonic = freq_timer_ < 2 && freq_counter_ == 0;
   bool clock_triunit;
   if (length_counter_ == 0 || linear_counter_ == 0 || ultrasonic) {
@@ -387,7 +404,7 @@ void TriangleWave::step() {
   }
 }
 
-void TriangleWave::clock_quarter_frame() {
+void ApuTriangle::clock_quarter_frame() {
   if (linear_reload_) {
     linear_counter_ = linear_load_;
   } else if (linear_counter_ > 0) {
@@ -399,13 +416,13 @@ void TriangleWave::clock_quarter_frame() {
   }
 }
 
-void TriangleWave::clock_half_frame() {
+void ApuTriangle::clock_half_frame() {
   if (length_enabled_ && length_counter_ > 0) {
     length_counter_--;
   }
 }
 
-float TriangleWave::output() {
+float ApuTriangle::output() {
   bool ultrasonic = freq_timer_ < 2 && freq_counter_ == 0;
   if (ultrasonic) {
     return 7.5;
@@ -416,24 +433,24 @@ float TriangleWave::output() {
   }
 }
 
-void TriangleWave::set_enabled(bool enabled) {
+void ApuTriangle::set_enabled(bool enabled) {
   enabled_ = enabled;
   if (!enabled) {
     length_counter_ = 0;
   }
 }
 
-void TriangleWave::write_4008(uint8_t x) {
+void ApuTriangle::write_4008(uint8_t x) {
   linear_control_ = get_bit<7>(x);
   length_enabled_ = !linear_control_;
   linear_load_    = get_bits<0, 6>(x);
 }
 
-void TriangleWave::write_400A(uint8_t x) {
+void ApuTriangle::write_400A(uint8_t x) {
   freq_timer_ = (freq_timer_ & 0xff00) | x;
 }
 
-void TriangleWave::write_400B(uint8_t x) {
+void ApuTriangle::write_400B(uint8_t x) {
   freq_timer_ = (uint16_t)((freq_timer_ & 0xff) | (get_bits<0, 2>(x) << 8));
 
   if (enabled_) {
@@ -441,6 +458,107 @@ void TriangleWave::write_400B(uint8_t x) {
   }
 
   linear_reload_ = true;
+}
+
+void ApuNoise::power_on() { reset(); }
+
+void ApuNoise::reset() {
+  enabled_          = false;
+  length_counter_   = 0;
+  length_enabled_   = false;
+  decay_loop_       = false;
+  decay_enabled_    = false;
+  decay_reset_flag_ = false;
+  decay_counter_    = 0;
+  decay_hidden_vol_ = 0;
+  decay_vol_        = 0;
+  freq_counter_     = 0;
+  freq_timer_       = 0;
+  shift_mode_       = false;
+  noise_shift_      = 1;
+}
+
+void ApuNoise::step() {
+  if (freq_counter_ > 0) {
+    freq_counter_--;
+  } else {
+    freq_counter_ = freq_timer_;
+    uint16_t bit;
+    if (shift_mode_) {
+      bit = ((noise_shift_ >> 6) & 1) ^ (noise_shift_ & 1);
+    } else {
+      bit = ((noise_shift_ >> 1) & 1) ^ (noise_shift_ & 1);
+    }
+    noise_shift_ = (uint16_t)((noise_shift_ & 0x7fff) | (bit << 15));
+    noise_shift_ >>= 1;
+  }
+}
+
+void ApuNoise::clock_quarter_frame() {
+  if (decay_reset_flag_) {
+    decay_reset_flag_ = false;
+    decay_hidden_vol_ = 0xf;
+    decay_counter_    = decay_vol_;
+  } else {
+    if (decay_counter_ > 0) {
+      decay_counter_--;
+    } else {
+      decay_counter_ = decay_vol_;
+      if (decay_hidden_vol_ > 0) {
+        decay_hidden_vol_--;
+      } else if (decay_loop_) {
+        decay_hidden_vol_ = 0xf;
+      }
+    }
+  }
+}
+
+void ApuNoise::clock_half_frame() {
+  if (length_enabled_ && length_counter_ > 0) {
+    length_counter_--;
+  }
+}
+
+uint8_t ApuNoise::output() {
+  if (!(noise_shift_ & 1) && length_counter_ != 0) {
+    if (decay_enabled_) {
+      return decay_hidden_vol_;
+    } else {
+      return decay_vol_;
+    }
+  } else {
+    return 0;
+  }
+}
+
+void ApuNoise::set_enabled(bool enabled) {
+  enabled_ = enabled;
+  if (!enabled) {
+    length_counter_ = 0;
+  }
+}
+
+void ApuNoise::write_400C(uint8_t x) {
+  decay_loop_     = get_bit<5>(x);
+  length_enabled_ = !get_bit<5>(x);
+  decay_enabled_  = !get_bit<4>(x);
+  decay_vol_      = get_bits<0, 3>(x);
+}
+
+static constexpr uint16_t NOISE_FREQ_TABLE[] = {
+    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068
+};
+
+void ApuNoise::write_400E(uint8_t x) {
+  freq_timer_ = NOISE_FREQ_TABLE[get_bits<0, 3>(x)] >> 1;
+  shift_mode_ = get_bit<7>(x);
+}
+
+void ApuNoise::write_400F(uint8_t x) {
+  if (enabled_) {
+    length_counter_ = LENGTH_TABLE[get_bits<3, 7>(x)];
+  }
+  decay_reset_flag_ = true;
 }
 
 void OutputBuffer::reset() {

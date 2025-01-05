@@ -4,9 +4,9 @@
 
 class Cpu;
 
-class PulseWave {
+class ApuPulse {
 public:
-  PulseWave(bool is_pulse_1) : is_pulse_1_(is_pulse_1) {}
+  ApuPulse(bool is_pulse_1) : is_pulse_1_(is_pulse_1) {}
 
   void    power_on();
   void    reset();
@@ -54,7 +54,7 @@ private:
   uint16_t freq_timer_;
 };
 
-class TriangleWave {
+class ApuTriangle {
 public:
   void  power_on();
   void  reset();
@@ -86,6 +86,43 @@ private:
 
   uint16_t freq_counter_;
   uint16_t freq_timer_;
+};
+
+class ApuNoise {
+public:
+  void    power_on();
+  void    reset();
+  void    step();
+  void    clock_quarter_frame();
+  void    clock_half_frame();
+  uint8_t output();
+
+  bool    enabled() const { return enabled_; }
+  uint8_t length_counter() const { return length_counter_; }
+  void    set_enabled(bool enabled);
+
+  void write_400C(uint8_t x);
+  void write_400E(uint8_t x);
+  void write_400F(uint8_t x);
+
+private:
+  bool enabled_;
+
+  uint8_t length_counter_;
+  bool    length_enabled_;
+
+  bool    decay_loop_;
+  bool    decay_enabled_;
+  bool    decay_reset_flag_;
+  uint8_t decay_counter_;
+  uint8_t decay_hidden_vol_;
+  uint8_t decay_vol_;
+
+  uint16_t freq_counter_;
+  uint16_t freq_timer_;
+
+  bool     shift_mode_;
+  uint16_t noise_shift_;
 };
 
 class OutputBuffer {
@@ -128,6 +165,10 @@ public:
   void write_400A(uint8_t x);
   void write_400B(uint8_t x);
 
+  void write_400C(uint8_t x);
+  void write_400E(uint8_t x);
+  void write_400F(uint8_t x);
+
   void write_4015(uint8_t x);
   void write_4017(uint8_t x);
 
@@ -146,11 +187,13 @@ private:
   void clock_half_frame();
 
   Cpu         *cpu_     = nullptr;
-  PulseWave    pulse_1_ = {true};
-  PulseWave    pulse_2_ = {false};
-  TriangleWave triangle_;
+  ApuPulse     pulse_1_ = {true};
+  ApuPulse     pulse_2_ = {false};
+  ApuTriangle  triangle_;
+  ApuNoise     noise_;
   FrameCounter fc_;
   OutputBuffer out_;
+  float        low_pass_;
   int64_t      cycles_;
   int64_t      sample_counter_;
 };
