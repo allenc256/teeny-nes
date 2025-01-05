@@ -183,7 +183,7 @@ void Apu::step_frame_counter() {
   bool should_clock_hf, should_signal_IRQ, should_reset_next_step;
   if (!fc_.mode) {
     should_clock_hf        = fc_.next_step & 1;
-    should_signal_IRQ      = fc_.next_step == 3;
+    should_signal_IRQ      = fc_.irq_enabled && fc_.next_step == 3;
     should_reset_next_step = fc_.next_step == 3;
   } else {
     should_clock_hf        = fc_.next_step == 1 || fc_.next_step == 4;
