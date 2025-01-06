@@ -5,12 +5,15 @@
 #include "src/app/palette.h"
 #include "src/app/pixel.h"
 
-static constexpr float SCALE_X = 3.0f;
-static constexpr float SCALE_Y = 2.25f;
+static constexpr float SCALE_X      = 3.0f;
+static constexpr float SCALE_Y      = 2.25f;
+static constexpr int   OVERSCAN     = 8;
+static constexpr int   FRAME_WIDTH  = 256;
+static constexpr int   FRAME_HEIGHT = 240 - OVERSCAN * 2;
 
 GameWindow::GameWindow(Nes &nes, SDL_Renderer *renderer)
     : nes_(nes),
-      frame_(renderer, 256, 240) {}
+      frame_(renderer, FRAME_WIDTH, FRAME_HEIGHT) {}
 
 static float clamp(float x, float min, float max) {
   return std::min(std::max(x, min), max);
@@ -19,8 +22,8 @@ static float clamp(float x, float min, float max) {
 static void render_tooltip() {
   ImVec2 item  = ImGui::GetItemRectMin();
   ImVec2 mouse = ImGui::GetMousePos();
-  float  x     = clamp((mouse.x - item.x) / SCALE_X, 0, 255);
-  float  y     = clamp((mouse.y - item.y) / SCALE_Y, 0, 239);
+  float  x     = clamp((mouse.x - item.x) / SCALE_X, 0, FRAME_WIDTH - 1);
+  float  y     = clamp((mouse.y - item.y) / SCALE_Y, 0, FRAME_HEIGHT - 1);
   ImGui::SetTooltip("x=%03.0f, y=%03.0f", x, y);
 }
 
@@ -33,7 +36,8 @@ void GameWindow::render(bool show_tooltip) {
   if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     prepare_frame();
     ImGui::Image(
-        (ImTextureID)frame_.get(), ImVec2(256 * SCALE_X, 240 * SCALE_Y)
+        (ImTextureID)frame_.get(),
+        ImVec2(FRAME_WIDTH * SCALE_X, FRAME_HEIGHT * SCALE_Y)
     );
     if (show_tooltip && ImGui::IsItemHovered()) {
       render_tooltip();
@@ -53,9 +57,9 @@ void GameWindow::prepare_frame() {
 
   SDL_LockTexture(frame_.get(), nullptr, (void **)&dst, &pitch);
   pitch /= 4;
-  for (int row = 0; row < 240; row++) {
-    for (int col = 0; col < 256; col++) {
-      int src_idx  = row * 256 + col;
+  for (int row = 0; row < FRAME_HEIGHT; row++) {
+    for (int col = 0; col < FRAME_WIDTH; col++) {
+      int src_idx  = (row + OVERSCAN) * 256 + col;
       int dst_idx  = row * pitch + col;
       dst[dst_idx] = palette[src[src_idx]];
     }

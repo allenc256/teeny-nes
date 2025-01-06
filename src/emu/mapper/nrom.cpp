@@ -10,7 +10,6 @@ static constexpr uint16_t PRG_ROM_MASK_128  = 0b0011111111111111;
 static constexpr uint16_t PRG_ROM_MASK_256  = 0b0111111111111111;
 static constexpr uint16_t PATTERN_TABLE_END = 0x2000;
 static constexpr uint16_t NAME_TABLE_END    = 0x3000;
-static constexpr uint16_t UNUSED_END        = 0x3f00;
 
 void NRom::power_on() { reset(); }
 void NRom::reset() { std::memset(mem_.prg_ram.get(), 0, mem_.prg_ram_size); }
@@ -49,7 +48,7 @@ void NRom::poke_cpu(uint16_t addr, uint8_t x) {
 }
 
 NRom::PeekPpu NRom::peek_ppu(uint16_t addr) {
-  assert(addr < UNUSED_END);
+  assert(addr < 0x3f00);
   if (addr < PATTERN_TABLE_END) {
     return PeekPpu::make_value(mem_.chr_rom[addr]);
   } else if (addr < NAME_TABLE_END) {
@@ -60,7 +59,7 @@ NRom::PeekPpu NRom::peek_ppu(uint16_t addr) {
 }
 
 NRom::PokePpu NRom::poke_ppu(uint16_t addr, uint8_t x) {
-  assert(addr < UNUSED_END);
+  assert(addr < 0x3f00);
   if (addr < PATTERN_TABLE_END) {
     if (mem_.chr_rom_readonly) {
       // N.B., some games (e.g., 1942) explicitly contain writes to the CHR ROM

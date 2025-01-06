@@ -15,7 +15,6 @@ public:
   void    clock_half_frame();
   uint8_t output();
 
-  bool    enabled() const { return enabled_; }
   uint8_t length_counter() const { return length_counter_; }
   void    set_enabled(bool enabled);
 
@@ -63,7 +62,6 @@ public:
   void  clock_half_frame();
   float output();
 
-  bool    enabled() const { return enabled_; }
   uint8_t length_counter() const { return length_counter_; }
   void    set_enabled(bool enabled);
 
@@ -97,7 +95,6 @@ public:
   void    clock_half_frame();
   uint8_t output();
 
-  bool    enabled() const { return enabled_; }
   uint8_t length_counter() const { return length_counter_; }
   void    set_enabled(bool enabled);
 
@@ -125,7 +122,46 @@ private:
   uint16_t noise_shift_;
 };
 
-class OutputBuffer {
+class ApuDmc {
+public:
+  void set_cpu(Cpu *cpu) { cpu_ = cpu; }
+
+  void    power_on();
+  void    reset();
+  void    step();
+  uint8_t output() { return output_; }
+
+  uint16_t length_counter() const { return length_; }
+  void     set_enabled(bool enabled);
+
+  void write_4010(uint8_t x);
+  void write_4011(uint8_t x);
+  void write_4012(uint8_t x);
+  void write_4013(uint8_t x);
+
+private:
+  Cpu *cpu_ = nullptr;
+
+  bool irq_enabled_;
+  bool loop_;
+
+  uint8_t output_;
+  uint8_t output_shift_;
+  bool    output_silent_;
+  uint8_t output_bits_;
+  uint8_t sample_buffer_;
+  bool    sample_empty_;
+
+  uint16_t addr_;
+  uint16_t addr_load_;
+  uint16_t length_;
+  uint16_t length_load_;
+
+  uint16_t freq_timer_;
+  uint16_t freq_counter_;
+};
+
+class ApuBuffer {
 public:
   static constexpr size_t CAPACITY = 2048;
 
@@ -142,14 +178,14 @@ private:
 
 class Apu {
 public:
-  void set_cpu(Cpu *cpu) { cpu_ = cpu; }
+  void set_cpu(Cpu *cpu);
 
   void power_on();
   void reset();
   void step();
 
-  OutputBuffer &output() { return out_; }
-  int64_t       cycles() { return cycles_; }
+  ApuBuffer &output() { return out_; }
+  int64_t    cycles() { return cycles_; }
 
   void write_4000(uint8_t x);
   void write_4001(uint8_t x);
@@ -168,6 +204,11 @@ public:
   void write_400C(uint8_t x);
   void write_400E(uint8_t x);
   void write_400F(uint8_t x);
+
+  void write_4010(uint8_t x);
+  void write_4011(uint8_t x);
+  void write_4012(uint8_t x);
+  void write_4013(uint8_t x);
 
   void write_4015(uint8_t x);
   void write_4017(uint8_t x);
@@ -191,9 +232,10 @@ private:
   ApuPulse     pulse_2_ = {false};
   ApuTriangle  triangle_;
   ApuNoise     noise_;
+  ApuDmc       dmc_;
   FrameCounter fc_;
-  OutputBuffer out_;
-  float        low_pass_;
+  ApuBuffer    out_;
+  float        output_ema_;
   int64_t      cycles_;
   int64_t      sample_counter_;
 };
