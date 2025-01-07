@@ -135,6 +135,8 @@ void AppWindow::open_rom() {
   }
 }
 
+static constexpr int AUDIO_QUEUE_MAX = 2048;
+
 void AppWindow::queue_audio() {
   if (paused_) {
     return;
@@ -148,16 +150,18 @@ void AppWindow::queue_audio() {
     return;
   }
 
-  // uint queued = SDL_GetQueuedAudioSize(audio_dev_.get());
-  // if (queued == 0) {
-  //   std::cout << "Detected audio buffer underflow!\n";
-  // }
+  int queued  = (int)(SDL_GetQueuedAudioSize(audio_dev_.get()) / sizeof(float));
+  int to_skip = std::max(queued + available - AUDIO_QUEUE_MAX, 0);
+  int to_write = available - to_skip;
 
-  for (int i = 0; i < available; i++) {
+  for (int i = 0; i < to_skip; i++) {
+    output.read();
+  }
+  for (int i = 0; i < to_write; i++) {
     samples[i] = output.read();
   }
 
-  int ret = SDL_QueueAudio(audio_dev_.get(), samples, available * 4);
+  int ret = SDL_QueueAudio(audio_dev_.get(), samples, to_write * sizeof(float));
   if (ret != 0) {
     throw std::runtime_error(
         std::format("audio failed to queue: {}", SDL_GetError())
