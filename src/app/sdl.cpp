@@ -15,18 +15,18 @@ SDLRes::SDLRes() {
     );
   }
 
-  constexpr float default_dpi =
 #ifdef __APPLE__
-      72.0f;
+  scale_factor_ = 1.0f;
 #else
-      96.0f;
-#endif
-
-  float dpi;
+  constexpr float default_dpi = 96.0f;
+  float           dpi;
   if (SDL_GetDisplayDPI(0, nullptr, &dpi, nullptr)) {
+    std::cout << "failed to retrieve dpi\n";
     dpi = default_dpi;
   }
+  std::cout << "dpi=" << dpi << '\n';
   scale_factor_ = dpi / default_dpi;
+#endif
 }
 
 SDLRes::~SDLRes() { SDL_Quit(); }
