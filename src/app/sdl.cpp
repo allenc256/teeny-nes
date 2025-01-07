@@ -1,4 +1,5 @@
 #include <SDL.h>
+#include <cstring>
 #include <format>
 #include <stdexcept>
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bit>
+#include <cstdint>
 
 template <uint16_t mask> constexpr uint16_t get_bits(uint16_t x) {
   constexpr int off = std::countr_zero(mask);

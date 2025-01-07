@@ -163,7 +163,7 @@ private:
 
 class ApuBuffer {
 public:
-  static constexpr size_t CAPACITY = 1024;
+  static constexpr std::size_t CAPACITY = 2048;
 
   void  reset();
   int   available() const;

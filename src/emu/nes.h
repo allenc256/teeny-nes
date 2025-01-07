@@ -22,7 +22,7 @@ public:
   void step();
   bool is_powered_on() const { return powered_on_; }
 
-  void load_cart(std::string_view path);
+  void load_cart(const std::string &path);
 
 private:
   Cpu                   cpu_;

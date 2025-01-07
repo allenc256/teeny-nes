@@ -41,7 +41,7 @@ void Nes::reset() {
   input_.power_on();
 }
 
-void Nes::load_cart(std::string_view path) {
+void Nes::load_cart(const std::string &path) {
   if (powered_on_) {
     throw std::runtime_error("cannot load cart when system is powered up");
   }
