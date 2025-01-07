@@ -27,8 +27,12 @@ static constexpr uint8_t get_bits(uint8_t x) {
   return (x & bits(start_index, end_index)) >> start_index;
 }
 
-static constexpr int64_t APU_HZ    = 1789773;
-static constexpr int64_t OUTPUT_HZ = 44100;
+static constexpr int64_t APU_HZ = 1789773;
+
+// N.B., output sample rate is slightly higher than the actual sound sample rate
+// (44100 hz) as a workaround for occasional buffer underflows (see
+// https://forums.nesdev.org/viewtopic.php?t=25391).
+static constexpr int64_t OUTPUT_HZ = 44200;
 
 void Apu::set_cpu(Cpu *cpu) {
   cpu_ = cpu;

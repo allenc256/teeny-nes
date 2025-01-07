@@ -136,13 +136,22 @@ void AppWindow::open_rom() {
 }
 
 void AppWindow::queue_audio() {
+  if (paused_) {
+    return;
+  }
+
   auto &output = nes_.apu().output();
-  float samples[2048];
+  float samples[ApuBuffer::CAPACITY];
   int   available = output.available();
-  assert(available <= 2048);
+  assert(available <= (int)ApuBuffer::CAPACITY);
   if (available == 0) {
     return;
   }
+
+  // uint queued = SDL_GetQueuedAudioSize(audio_dev_.get());
+  // if (queued == 0) {
+  //   std::cout << "Detected audio buffer underflow!\n";
+  // }
 
   for (int i = 0; i < available; i++) {
     samples[i] = output.read();
