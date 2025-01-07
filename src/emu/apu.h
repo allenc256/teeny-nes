@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 class Cpu;
@@ -161,6 +162,29 @@ private:
   uint16_t freq_counter_;
 };
 
+class ApuFrameCounter {
+public:
+  struct Clock {
+    bool quarter_frame;
+    bool half_frame;
+  };
+
+  void set_cpu(Cpu *cpu) { cpu_ = cpu; }
+
+  void  power_on();
+  void  reset();
+  Clock step();
+
+  Clock write_4017(uint8_t x);
+
+private:
+  Cpu *cpu_ = nullptr;
+  bool mode_;
+  bool irq_enabled_;
+  int  next_step_;
+  int  cycles_left_;
+};
+
 class ApuBuffer {
 public:
   static constexpr std::size_t CAPACITY = 2048;
@@ -216,26 +240,17 @@ public:
   uint8_t read_4015();
 
 private:
-  struct FrameCounter {
-    bool mode;
-    bool irq_enabled;
-    int  next_step;
-    int  cycles_left;
-  };
+  void clock_frame_counter(ApuFrameCounter::Clock clock);
 
-  void step_frame_counter();
-  void clock_quarter_frame();
-  void clock_half_frame();
-
-  Cpu         *cpu_     = nullptr;
-  ApuPulse     pulse_1_ = {true};
-  ApuPulse     pulse_2_ = {false};
-  ApuTriangle  triangle_;
-  ApuNoise     noise_;
-  ApuDmc       dmc_;
-  FrameCounter fc_;
-  ApuBuffer    out_;
-  float        output_ema_;
-  int64_t      cycles_;
-  int64_t      sample_counter_;
+  Cpu            *cpu_     = nullptr;
+  ApuPulse        pulse_1_ = {true};
+  ApuPulse        pulse_2_ = {false};
+  ApuTriangle     triangle_;
+  ApuNoise        noise_;
+  ApuDmc          dmc_;
+  ApuFrameCounter fc_;
+  ApuBuffer       out_;
+  float           output_ema_;
+  int64_t         cycles_;
+  int64_t         sample_counter_;
 };

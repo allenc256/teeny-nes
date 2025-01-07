@@ -37,6 +37,7 @@ static constexpr int64_t OUTPUT_HZ = 44200;
 void Apu::set_cpu(Cpu *cpu) {
   cpu_ = cpu;
   dmc_.set_cpu(cpu);
+  fc_.set_cpu(cpu);
 }
 
 void Apu::power_on() {
@@ -45,11 +46,8 @@ void Apu::power_on() {
   triangle_.power_on();
   noise_.power_on();
   dmc_.power_on();
+  fc_.power_on();
   out_.reset();
-  fc_.mode        = false;
-  fc_.irq_enabled = true;
-  fc_.next_step   = 0;
-  fc_.cycles_left = 0;
   cycles_         = 0;
   sample_counter_ = APU_HZ;
   output_ema_     = 0;
@@ -61,11 +59,8 @@ void Apu::reset() {
   triangle_.reset();
   noise_.reset();
   dmc_.reset();
+  fc_.reset();
   out_.reset();
-  fc_.mode        = false;
-  fc_.irq_enabled = true;
-  fc_.next_step   = 0;
-  fc_.cycles_left = 0;
   cycles_         = 0;
   sample_counter_ = APU_HZ;
   output_ema_     = 0;
@@ -116,23 +111,8 @@ static int get_fc_cycles_left(int next_step, bool mode) {
 }
 
 void Apu::write_4017(uint8_t x) {
-  fc_.mode        = get_bit<7>(x);
-  fc_.irq_enabled = !get_bit<6>(x);
-  fc_.next_step   = 0;
-  fc_.cycles_left = get_fc_cycles_left(fc_.next_step, fc_.mode);
-
-  // From nesdev:
-  //    Writing to $4017 with bit 7 set ($80) will immediately clock all of its
-  //    controlled units at the beginning of the 5-step sequence; with bit 7
-  //    clear, only the sequence is reset without clocking any of its units.
-  if (fc_.mode) {
-    clock_quarter_frame();
-    clock_half_frame();
-  }
-
-  if (!fc_.irq_enabled) {
-    cpu_->clear_IRQ(Cpu::IrqSource::APU_FRAME_COUNTER);
-  }
+  auto clock = fc_.write_4017(x);
+  clock_frame_counter(clock);
 }
 
 void Apu::write_4015(uint8_t x) {
@@ -182,7 +162,8 @@ void Apu::step() {
     noise_.step();
   }
 
-  step_frame_counter();
+  auto clock = fc_.step();
+  clock_frame_counter(clock);
 
   cycles_++;
 
@@ -199,51 +180,19 @@ void Apu::step() {
   }
 }
 
-void Apu::step_frame_counter() {
-  if (fc_.cycles_left > 0) {
-    fc_.cycles_left--;
-    return;
+void Apu::clock_frame_counter(ApuFrameCounter::Clock clock) {
+  if (clock.quarter_frame) {
+    pulse_1_.clock_quarter_frame();
+    pulse_2_.clock_quarter_frame();
+    triangle_.clock_quarter_frame();
+    noise_.clock_quarter_frame();
   }
-
-  bool should_clock_hf, should_signal_IRQ, should_reset_next_step;
-  if (!fc_.mode) {
-    should_clock_hf        = fc_.next_step & 1;
-    should_signal_IRQ      = fc_.irq_enabled && fc_.next_step == 3;
-    should_reset_next_step = fc_.next_step == 3;
-  } else {
-    should_clock_hf        = fc_.next_step == 1 || fc_.next_step == 4;
-    should_signal_IRQ      = false;
-    should_reset_next_step = fc_.next_step == 4;
+  if (clock.half_frame) {
+    pulse_1_.clock_half_frame();
+    pulse_2_.clock_half_frame();
+    triangle_.clock_half_frame();
+    noise_.clock_half_frame();
   }
-
-  clock_quarter_frame();
-  if (should_clock_hf) {
-    clock_half_frame();
-  }
-  if (should_signal_IRQ) {
-    cpu_->signal_IRQ(Cpu::IrqSource::APU_FRAME_COUNTER);
-  }
-  if (should_reset_next_step) {
-    fc_.next_step = 0;
-  } else {
-    fc_.next_step++;
-  }
-
-  fc_.cycles_left = get_fc_cycles_left(fc_.next_step, fc_.mode);
-}
-
-void Apu::clock_quarter_frame() {
-  pulse_1_.clock_quarter_frame();
-  pulse_2_.clock_quarter_frame();
-  triangle_.clock_quarter_frame();
-  noise_.clock_quarter_frame();
-}
-
-void Apu::clock_half_frame() {
-  pulse_1_.clock_half_frame();
-  pulse_2_.clock_half_frame();
-  triangle_.clock_half_frame();
-  noise_.clock_half_frame();
 }
 
 static constexpr uint8_t DUTY_CYCLES[] = {
@@ -673,6 +622,66 @@ void ApuDmc::step() {
       }
     }
   }
+}
+
+void ApuFrameCounter::power_on() { reset(); }
+
+void ApuFrameCounter::reset() {
+  mode_        = false;
+  irq_enabled_ = true;
+  next_step_   = 0;
+  cycles_left_ = 0;
+}
+
+ApuFrameCounter::Clock ApuFrameCounter::write_4017(uint8_t x) {
+  mode_        = get_bit<7>(x);
+  irq_enabled_ = !get_bit<6>(x);
+  next_step_   = 0;
+  cycles_left_ = get_fc_cycles_left(next_step_, mode_);
+
+  if (!irq_enabled_) {
+    cpu_->clear_IRQ(Cpu::IrqSource::APU_FRAME_COUNTER);
+  }
+
+  if (mode_) {
+    return {.quarter_frame = true, .half_frame = true};
+  } else {
+    return {.quarter_frame = false, .half_frame = false};
+  }
+}
+
+ApuFrameCounter::Clock ApuFrameCounter::step() {
+  if (cycles_left_ > 0) {
+    cycles_left_--;
+    return {.quarter_frame = false, .half_frame = false};
+  }
+
+  Clock clock;
+  bool  should_signal_IRQ, should_reset_next_step;
+  if (!mode_) {
+    clock.half_frame       = next_step_ & 1;
+    should_signal_IRQ      = irq_enabled_ && next_step_ == 3;
+    should_reset_next_step = next_step_ == 3;
+  } else {
+    clock.half_frame       = next_step_ == 1 || next_step_ == 4;
+    should_signal_IRQ      = false;
+    should_reset_next_step = next_step_ == 4;
+  }
+
+  clock.quarter_frame = true;
+
+  if (should_signal_IRQ) {
+    cpu_->signal_IRQ(Cpu::IrqSource::APU_FRAME_COUNTER);
+  }
+  if (should_reset_next_step) {
+    next_step_ = 0;
+  } else {
+    next_step_++;
+  }
+
+  cycles_left_ = get_fc_cycles_left(next_step_, mode_);
+
+  return clock;
 }
 
 void ApuBuffer::reset() {
