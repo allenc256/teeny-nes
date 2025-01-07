@@ -664,7 +664,7 @@ Coroutine Ppu::spr_loop() {
   while (true) {
     // Cycle 0 is idle.
     assert(
-        scanline_ >= 0 && scanline_ < 240 || scanline_ == PRE_RENDER_SCANLINE
+        (scanline_ >= 0 && scanline_ < 240) || scanline_ == PRE_RENDER_SCANLINE
     );
     assert(dot_ == 0);
     co_await SUSPEND_ALWAYS;

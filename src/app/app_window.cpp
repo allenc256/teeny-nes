@@ -104,7 +104,7 @@ void AppWindow::render_imgui() {
 
 void AppWindow::render_imgui_menu() {
   if (ImGui::BeginMainMenuBar()) {
-    if (ImGui::BeginMenu("Debug")) {
+    if (ImGui::BeginMenu("Game")) {
       if (ImGui::MenuItem("Open")) {
         open_rom();
       }
@@ -112,6 +112,10 @@ void AppWindow::render_imgui_menu() {
       ImGui::MenuItem("Pause", nullptr, &paused_, nes_.is_powered_on());
       if (prev_paused && !paused_) {
         timer_.reset();
+      }
+      if (ImGui::MenuItem("Power Off", nullptr, false, nes_.is_powered_on())) {
+        nes_.power_off();
+        paused_ = false;
       }
       ImGui::MenuItem(
           "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_on()

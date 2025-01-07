@@ -95,7 +95,7 @@ void Mmc3::write_bank_data(uint8_t x) {
   int index = regs_.bank_select & 7;
   switch (index) {
   case 0:
-  case 1: x &= 0b11111110; // falls-through
+  case 1: x &= 0b11111110; [[fallthrough]];
   case 2:
   case 3:
   case 4:

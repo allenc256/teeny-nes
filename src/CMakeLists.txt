@@ -32,12 +32,16 @@ file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
 find_package(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIRS})
 
-if (MSVC)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   set(CXX_FLAGS /W4 /WX)
 else()
-  set(CXX_FLAGS -Wall -Wextra -Wpedantic -Werror -Wconversion -Wno-gcc-compat -Wno-sign-conversion -march=native)
+  set(CXX_FLAGS -Wall -Wextra -Wpedantic -Werror -Wno-gcc-compat -Wno-sign-conversion -march=native)
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(CXX_FLAGS ${CXX_FLAGS} -Wconversion)
+  endif()
 endif()
 
+# -Werror=conversion
 add_executable(teenynes
   ${EMU_SOURCES}
   ${APP_SOURCES}
