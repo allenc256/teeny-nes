@@ -10,6 +10,11 @@ class SDLRes {
 public:
   SDLRes();
   ~SDLRes();
+
+  float scale_factor() const { return scale_factor_; }
+
+private:
+  float scale_factor_;
 };
 
 class SDLWindowRes {

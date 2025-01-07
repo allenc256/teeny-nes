@@ -13,12 +13,18 @@ static constexpr int WINDOW_HEIGHT = 539;
 AppWindow::AppWindow()
     : paused_(false),
       show_ppu_window_(false),
-      window_("teeny-nes", WINDOW_WIDTH, WINDOW_HEIGHT),
+      window_(
+          "teeny-nes",
+          (int)(WINDOW_WIDTH * sdl_.scale_factor()),
+          (int)(WINDOW_HEIGHT * sdl_.scale_factor())
+      ),
       renderer_(window_.get()),
       imgui_(window_.get(), renderer_.get()),
       game_window_(nes_, renderer_.get()),
       ppu_window_(nes_, renderer_.get()) {
   nes_.input().set_controller(&keyboard_, 0);
+
+  ImGui::GetIO().FontGlobalScale = sdl_.scale_factor();
 }
 
 void AppWindow::run() {
@@ -127,7 +133,7 @@ void AppWindow::open_rom() {
   }
 }
 
-static constexpr int AUDIO_QUEUE_TARGET = 1024;
+static constexpr int AUDIO_QUEUE_TARGET = 2048;
 
 void AppWindow::queue_audio() {
   if (paused_) {
@@ -150,10 +156,14 @@ void AppWindow::queue_audio() {
   // https://forums.nesdev.org/viewtopic.php?f=3&t=11612.
   int queued = (int)(SDL_GetQueuedAudioSize(audio_dev_.get()) / sizeof(float));
   if (queued > AUDIO_QUEUE_TARGET) {
-    nes_.apu().set_sample_rate(44050);
+    nes_.apu().set_sample_rate(44000);
   } else {
-    nes_.apu().set_sample_rate(44150);
+    nes_.apu().set_sample_rate(44200);
   }
+
+  // if (queued == 0) {
+  //   std::cout << "underflow detected!\n";
+  // }
 
   int ret =
       SDL_QueueAudio(audio_dev_.get(), samples, available * sizeof(float));

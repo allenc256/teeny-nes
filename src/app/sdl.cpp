@@ -14,6 +14,19 @@ SDLRes::SDLRes() {
         std::format("failed to initialize SDL: {}", SDL_GetError())
     );
   }
+
+  constexpr float default_dpi =
+#ifdef __APPLE__
+      72.0f;
+#else
+      96.0f;
+#endif
+
+  float dpi;
+  if (SDL_GetDisplayDPI(0, nullptr, &dpi, nullptr)) {
+    dpi = default_dpi;
+  }
+  scale_factor_ = dpi / default_dpi;
 }
 
 SDLRes::~SDLRes() { SDL_Quit(); }
