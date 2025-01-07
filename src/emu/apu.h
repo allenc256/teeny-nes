@@ -203,6 +203,7 @@ private:
 class Apu {
 public:
   void set_cpu(Cpu *cpu);
+  void set_sample_rate(int64_t sample_rate) { sample_rate_ = sample_rate; }
 
   void power_on();
   void reset();
@@ -252,5 +253,6 @@ private:
   ApuBuffer       out_;
   float           output_ema_;
   int64_t         cycles_;
+  int64_t         sample_rate_ = 44100;
   int64_t         sample_counter_;
 };

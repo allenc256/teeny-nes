@@ -135,7 +135,7 @@ void AppWindow::open_rom() {
   }
 }
 
-static constexpr int AUDIO_QUEUE_MAX = 2048;
+static constexpr int AUDIO_QUEUE_TARGET = 1024;
 
 void AppWindow::queue_audio() {
   if (paused_) {
@@ -150,18 +150,21 @@ void AppWindow::queue_audio() {
     return;
   }
 
-  int queued  = (int)(SDL_GetQueuedAudioSize(audio_dev_.get()) / sizeof(float));
-  int to_skip = std::max(queued + available - AUDIO_QUEUE_MAX, 0);
-  int to_write = available - to_skip;
-
-  for (int i = 0; i < to_skip; i++) {
-    output.read();
-  }
-  for (int i = 0; i < to_write; i++) {
+  for (int i = 0; i < available; i++) {
     samples[i] = output.read();
   }
 
-  int ret = SDL_QueueAudio(audio_dev_.get(), samples, to_write * sizeof(float));
+  // Dynamically adjust sample rate per ideas in this thread:
+  // https://forums.nesdev.org/viewtopic.php?f=3&t=11612.
+  int queued = (int)(SDL_GetQueuedAudioSize(audio_dev_.get()) / sizeof(float));
+  if (queued > AUDIO_QUEUE_TARGET) {
+    nes_.apu().set_sample_rate(44050);
+  } else {
+    nes_.apu().set_sample_rate(44150);
+  }
+
+  int ret =
+      SDL_QueueAudio(audio_dev_.get(), samples, available * sizeof(float));
   if (ret != 0) {
     throw std::runtime_error(
         std::format("audio failed to queue: {}", SDL_GetError())

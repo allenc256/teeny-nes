@@ -29,11 +29,6 @@ static constexpr uint8_t get_bits(uint8_t x) {
 
 static constexpr int64_t APU_HZ = 1789773;
 
-// N.B., output sample rate is slightly higher than the actual sound sample rate
-// (44100 hz) as a workaround for occasional buffer underflows (see
-// https://forums.nesdev.org/viewtopic.php?t=25391).
-static constexpr int64_t OUTPUT_HZ = 44200;
-
 void Apu::set_cpu(Cpu *cpu) {
   cpu_ = cpu;
   dmc_.set_cpu(cpu);
@@ -173,7 +168,7 @@ void Apu::step() {
   assert(output >= 0 && output <= 1);
   output_ema_ = output * 0.05f + output_ema_ * 0.95f;
 
-  sample_counter_ -= OUTPUT_HZ;
+  sample_counter_ -= sample_rate_;
   if (sample_counter_ <= 0) {
     out_.write(output_ema_);
     sample_counter_ += APU_HZ;
