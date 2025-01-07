@@ -34,7 +34,6 @@ private:
   bool               paused_;
 
   bool show_ppu_window_;
-  bool show_xy_tooltip_;
 
   Nfd               nfd_;
   SDLRes            sdl_;

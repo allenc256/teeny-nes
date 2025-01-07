@@ -7,21 +7,18 @@
 #include "src/app/app_window.h"
 #include "src/app/palette.h"
 
+static constexpr int WINDOW_WIDTH  = 784;
+static constexpr int WINDOW_HEIGHT = 539;
+
 AppWindow::AppWindow()
     : paused_(false),
       show_ppu_window_(false),
-      show_xy_tooltip_(false),
-      window_(
-          "teeny-nes",
-          GameWindow::WINDOW_WIDTH + 16,
-          GameWindow::WINDOW_HEIGHT + 35
-      ),
+      window_("teeny-nes", WINDOW_WIDTH, WINDOW_HEIGHT),
       renderer_(window_.get()),
       imgui_(window_.get(), renderer_.get()),
       game_window_(nes_, renderer_.get()),
       ppu_window_(nes_, renderer_.get()) {
   nes_.input().set_controller(&keyboard_, 0);
-  SDL_SetWindowResizable(window_.get(), SDL_FALSE);
 }
 
 void AppWindow::run() {
@@ -74,14 +71,7 @@ void AppWindow::render() {
       io.DisplayFramebufferScale.x,
       io.DisplayFramebufferScale.y
   );
-  const ImVec4 &bg_color = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-  SDL_SetRenderDrawColor(
-      renderer_.get(),
-      (uint8_t)(bg_color.x * 255.0),
-      (uint8_t)(bg_color.y * 255.0),
-      (uint8_t)(bg_color.z * 255.0),
-      0
-  );
+  SDL_SetRenderDrawColor(renderer_.get(), 0, 0, 0, 0);
   SDL_RenderClear(renderer_.get());
   ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer_.get());
   SDL_RenderPresent(renderer_.get());
@@ -92,12 +82,12 @@ void AppWindow::render_imgui() {
   ImGui_ImplSDL2_NewFrame();
   ImGui::NewFrame();
 
-  ImGui::ShowDemoWindow();
+  // ImGui::ShowDemoWindow();
 
   render_imgui_menu();
 
   if (nes_.is_powered_on()) {
-    game_window_.render(show_xy_tooltip_);
+    game_window_.render();
   }
   if (show_ppu_window_) {
     ppu_window_.render();
@@ -117,9 +107,6 @@ void AppWindow::render_imgui_menu() {
       if (prev_paused && !paused_) {
         timer_.reset();
       }
-      ImGui::MenuItem(
-          "Show X/Y Tooltip", nullptr, &show_xy_tooltip_, nes_.is_powered_on()
-      );
       ImGui::MenuItem(
           "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_on()
       );
