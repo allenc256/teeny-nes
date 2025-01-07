@@ -5,12 +5,6 @@
 #include "src/app/palette.h"
 #include "src/app/pixel.h"
 
-static constexpr float SCALE_X      = 3.0f;
-static constexpr float SCALE_Y      = 2.25f;
-static constexpr int   OVERSCAN     = 8;
-static constexpr int   FRAME_WIDTH  = 256;
-static constexpr int   FRAME_HEIGHT = 240 - OVERSCAN * 2;
-
 GameWindow::GameWindow(Nes &nes, SDL_Renderer *renderer)
     : nes_(nes),
       frame_(renderer, FRAME_WIDTH, FRAME_HEIGHT) {}
@@ -22,8 +16,12 @@ static float clamp(float x, float min, float max) {
 static void render_tooltip() {
   ImVec2 item  = ImGui::GetItemRectMin();
   ImVec2 mouse = ImGui::GetMousePos();
-  float  x     = clamp((mouse.x - item.x) / SCALE_X, 0, FRAME_WIDTH - 1);
-  float  y     = clamp((mouse.y - item.y) / SCALE_Y, 0, FRAME_HEIGHT - 1);
+  float  x     = clamp(
+      (mouse.x - item.x) / GameWindow::SCALE_X, 0, GameWindow::FRAME_WIDTH - 1
+  );
+  float y = clamp(
+      (mouse.y - item.y) / GameWindow::SCALE_Y, 0, GameWindow::FRAME_HEIGHT - 1
+  );
   ImGui::SetTooltip("x=%03.0f, y=%03.0f", x, y);
 }
 
@@ -33,7 +31,14 @@ void GameWindow::render(bool show_tooltip) {
     return;
   }
 
-  if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+  auto flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+               ImGuiWindowFlags_NoSavedSettings;
+
+  const ImGuiViewport *viewport = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(viewport->WorkPos);
+  ImGui::SetNextWindowSize(viewport->WorkSize);
+
+  if (ImGui::Begin("Game", nullptr, flags)) {
     prepare_frame();
     ImGui::Image(
         (ImTextureID)frame_.get(),

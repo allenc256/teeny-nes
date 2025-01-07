@@ -11,12 +11,17 @@ AppWindow::AppWindow()
     : paused_(false),
       show_ppu_window_(false),
       show_xy_tooltip_(false),
-      window_("teeny-nes", 1024, 768),
+      window_(
+          "teeny-nes",
+          GameWindow::WINDOW_WIDTH + 16,
+          GameWindow::WINDOW_HEIGHT + 35
+      ),
       renderer_(window_.get()),
       imgui_(window_.get(), renderer_.get()),
       game_window_(nes_, renderer_.get()),
       ppu_window_(nes_, renderer_.get()) {
   nes_.input().set_controller(&keyboard_, 0);
+  SDL_SetWindowResizable(window_.get(), SDL_FALSE);
 }
 
 void AppWindow::run() {
@@ -87,7 +92,7 @@ void AppWindow::render_imgui() {
   ImGui_ImplSDL2_NewFrame();
   ImGui::NewFrame();
 
-  // ImGui::ShowDemoWindow();
+  ImGui::ShowDemoWindow();
 
   render_imgui_menu();
 
