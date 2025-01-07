@@ -7,7 +7,7 @@
 
 class Labels {
 public:
-  Labels(std::string_view path) {
+  Labels(std::string path) {
     std::ifstream ifs(path);
     if (!ifs) {
       throw new std::runtime_error(std::format("failed to open file: {}", path)

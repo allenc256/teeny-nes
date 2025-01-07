@@ -45,6 +45,7 @@ public:
 
   void set_cpu(Cpu *cpu) { cpu_ = cpu; }
   void set_ready(bool ready) { ready_ = ready; }
+  void set_step_cart(bool step_cart) { step_cart_ = step_cart; }
 
   void set_cart(Cart *cart) {
     cart_      = cart;

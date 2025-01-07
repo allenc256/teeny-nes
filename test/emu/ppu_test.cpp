@@ -113,6 +113,7 @@ TEST(Ppu, ready) {
 
   Ppu ppu;
 
+  ppu.set_step_cart(false);
   ppu.power_on();
   ASSERT_EQ(0, ppu.cycles());
   ASSERT_FALSE(ppu.ready());

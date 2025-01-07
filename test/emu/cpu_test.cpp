@@ -36,6 +36,8 @@ TEST(Cpu, nestest) {
   cpu.set_cart(cart.get());
   cpu.set_apu(&apu);
   cpu.set_ppu(&ppu);
+  apu.set_cpu(&cpu);
+  ppu.set_cpu(&cpu);
   cpu.power_on();
   cpu.registers().PC = 0xc000;
 
