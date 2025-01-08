@@ -25,6 +25,7 @@ AppWindow::AppWindow()
   nes_.input().set_controller(&keyboard_, 0);
 
   ImGui::GetIO().FontGlobalScale = sdl_.scale_factor();
+  ImGui::GetStyle().ScaleAllSizes(sdl_.scale_factor());
 }
 
 void AppWindow::run() {
