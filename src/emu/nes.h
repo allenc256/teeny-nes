@@ -14,7 +14,7 @@ public:
   Ppu   &ppu() { return ppu_; }
   Apu   &apu() { return apu_; }
   Input &input() { return input_; }
-  Cart  *cart() { return cart_.get(); }
+  Cart  &cart() { return cart_; }
 
   void power_on();
   void power_off();
@@ -25,10 +25,10 @@ public:
   void load_cart(const std::string &path);
 
 private:
-  Cpu                   cpu_;
-  Ppu                   ppu_;
-  Apu                   apu_;
-  Input                 input_;
-  std::unique_ptr<Cart> cart_;
-  bool                  powered_on_;
+  Cpu   cpu_;
+  Ppu   ppu_;
+  Apu   apu_;
+  Input input_;
+  Cart  cart_;
+  bool  powered_on_;
 };

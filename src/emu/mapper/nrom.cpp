@@ -1,3 +1,4 @@
+#include <cassert>
 #include <cstring>
 #include <format>
 #include <fstream>
@@ -11,8 +12,8 @@ static constexpr uint16_t PRG_ROM_MASK_256  = 0b0111111111111111;
 static constexpr uint16_t PATTERN_TABLE_END = 0x2000;
 static constexpr uint16_t NAME_TABLE_END    = 0x3000;
 
-NRom::NRom(const Header &header, Memory &&mem)
-    : Cart(std::move(mem)),
+NRom::NRom(const CartHeader &header, CartMemory &mem)
+    : mem_(mem),
       mirroring_(header.mirroring()) {
   if (header.prg_rom_chunks() == 1) {
     prg_rom_mask_ = PRG_ROM_MASK_128;
@@ -26,7 +27,6 @@ NRom::NRom(const Header &header, Memory &&mem)
 }
 
 uint8_t NRom::peek_cpu(uint16_t addr) {
-  assert(addr >= CPU_ADDR_START);
   if (addr >= 0x8000) {
     return mem_.prg_rom[addr & prg_rom_mask_];
   } else if (addr >= 0x6000) {
@@ -44,8 +44,7 @@ void NRom::poke_cpu(uint16_t addr, uint8_t x) {
   }
 }
 
-NRom::PeekPpu NRom::peek_ppu(uint16_t addr) {
-  assert(addr < 0x3f00);
+PeekPpu NRom::peek_ppu(uint16_t addr) {
   if (addr < PATTERN_TABLE_END) {
     return PeekPpu::make_value(mem_.chr_rom[addr]);
   } else if (addr < NAME_TABLE_END) {
@@ -55,8 +54,7 @@ NRom::PeekPpu NRom::peek_ppu(uint16_t addr) {
   }
 }
 
-NRom::PokePpu NRom::poke_ppu(uint16_t addr, uint8_t x) {
-  assert(addr < 0x3f00);
+PokePpu NRom::poke_ppu(uint16_t addr, uint8_t x) {
   if (addr < PATTERN_TABLE_END) {
     if (mem_.chr_rom_readonly) {
       // N.B., some games (e.g., 1942) explicitly contain writes to the CHR ROM

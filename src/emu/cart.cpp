@@ -10,101 +10,16 @@
 #include "src/emu/mapper/nrom.h"
 #include "src/emu/mapper/uxrom.h"
 
-using Header    = Cart::Header;
-using Mirroring = Cart::Mirroring;
-using Memory    = Cart::Memory;
-
-static constexpr uint16_t MIRROR_HORZ_OFF_MASK = 0x3ff;
-static constexpr uint16_t MIRROR_HORZ_NT_MASK  = 0x800;
-static constexpr uint16_t MIRROR_VERT_MASK     = 0x7ff;
-
-uint16_t Cart::mirrored_nt_addr(Mirroring mirroring, uint16_t addr) {
-  switch (mirroring) {
-  case MIRROR_HORZ:
-    return (addr & MIRROR_HORZ_OFF_MASK) | ((addr & MIRROR_HORZ_NT_MASK) >> 1);
-  case MIRROR_VERT: return addr & MIRROR_VERT_MASK;
-  case MIRROR_SCREEN_A_ONLY: return addr & 0x3ff;
-  case MIRROR_SCREEN_B_ONLY: return (addr & 0x3ff) + 1024;
-  default: throw std::runtime_error("unreachable");
-  }
-}
-
-static constexpr uint8_t HEADER_TAG[4] = {0x4e, 0x45, 0x53, 0x1a};
-
-// Flags 6
-// =======
-//
-// 76543210
-// ||||||||
-// |||||||+- Nametable arrangement: 0: vertical
-// |||||||                          1: horizontal
-// ||||||+-- 1: Cartridge contains battery-backed PRG RAM ($6000-7FFF)
-// |||||+--- 1: 512-byte trainer at $7000-$71FF (stored before PRG data)
-// ||||+---- 1: Alternative nametable layout
-// ++++----- Lower nybble of mapper number
-static constexpr uint8_t FLAGS_6_MIRROR_VERT        = 0b00000001;
-static constexpr uint8_t FLAGS_6_PRG_RAM_PERSISTENT = 0b00000010;
-static constexpr uint8_t FLAGS_6_TRAINER            = 0b00000100;
-static constexpr uint8_t FLAGS_6_MIRROR_ALT         = 0b00001000;
-
-static bool header_is_nes20(uint8_t bytes[16]) {
-  return (bytes[7] & 0b00001100) == 0b00001000;
-}
-
-Header::Header(uint8_t bytes[16]) {
-  for (size_t i = 0; i < sizeof(HEADER_TAG); i++) {
-    if (bytes[i] != HEADER_TAG[i]) {
-      throw std::runtime_error("unsupported ROM format: unknown header type");
-    }
-  }
-  if (header_is_nes20(bytes)) {
-    throw std::runtime_error("NES 2.0 headers not supported");
-  }
-
-  std::memcpy(bytes_, bytes, sizeof(bytes_));
-}
-
-bool Header::has_trainer() const { return bytes_[6] & FLAGS_6_TRAINER; }
-
-bool Header::prg_ram_persistent() const {
-  return bytes_[6] & FLAGS_6_PRG_RAM_PERSISTENT;
-}
-
-int  Header::prg_rom_chunks() const { return bytes_[4]; }
-int  Header::chr_rom_chunks() const { return bytes_[5]; }
-int  Header::prg_ram_chunks() const { return bytes_[8]; }
-bool Header::chr_rom_readonly() const { return chr_rom_chunks() > 0; }
-
-bool Header::mirroring_specified() const {
-  return !(bytes_[6] & FLAGS_6_MIRROR_ALT);
-}
-
-Mirroring Header::mirroring() const {
-  if (!mirroring_specified()) {
-    throw std::runtime_error("mirroring not specified");
-  } else if (bytes_[6] & FLAGS_6_MIRROR_VERT) {
-    return MIRROR_VERT;
-  } else {
-    return MIRROR_HORZ;
-  }
-}
-
-int Header::mapper() const {
-  uint8_t lower_nibble = bytes_[6] >> 4;
-  uint8_t upper_nibble = bytes_[7] & 0xf0;
-  return lower_nibble | upper_nibble;
-}
-
-Header read_header(std::ifstream &is) {
+CartHeader read_header(std::ifstream &is) {
   uint8_t bytes[16];
   if (!is.read((char *)bytes, sizeof(bytes))) {
     throw std::runtime_error("failed to read header");
   }
-  return Header(bytes);
+  return CartHeader(bytes);
 }
 
-Memory read_data(std::ifstream &is, const Header &header) {
-  Memory mem;
+CartMemory read_data(std::ifstream &is, const CartHeader &header) {
+  CartMemory mem;
 
   if (header.has_trainer()) {
     throw std::runtime_error("unsupported ROM format: trainer");
@@ -143,9 +58,7 @@ Memory read_data(std::ifstream &is, const Header &header) {
   return mem;
 }
 
-Cart::Cart(Memory &&mem) : mem_(std::move(mem)) {}
-
-static void save_prg_ram(const Memory &mem) {
+static void save_prg_ram(const CartMemory &mem) {
   if (!mem.prg_ram_persistent || mem.prg_ram_save_path.empty()) {
     return;
   }
@@ -167,7 +80,7 @@ static void save_prg_ram(const Memory &mem) {
   }
 }
 
-static void load_prg_ram(Memory &mem) {
+static void load_prg_ram(CartMemory &mem) {
   if (!mem.prg_ram_persistent || mem.prg_ram_save_path.empty()) {
     return;
   }
@@ -192,15 +105,42 @@ static void load_prg_ram(Memory &mem) {
   }
 }
 
-void Cart::power_on() { internal_power_on(); }
+bool Cart::loaded() const { return mapper_.get() != nullptr; }
+void Cart::power_on() { mapper_->power_on(); }
 void Cart::power_off() { save_prg_ram(mem_); }
 
 void Cart::reset() {
   save_prg_ram(mem_);
-  internal_reset();
+  mapper_->reset();
 }
 
-std::unique_ptr<Cart> read_cart(const std::filesystem::path &path) {
+void Cart::step_ppu() {
+  if (step_ppu_enabled_) {
+    mapper_->step_ppu();
+  }
+}
+
+uint8_t Cart::peek_cpu(uint16_t addr) {
+  assert(addr >= CPU_ADDR_START);
+  return mapper_->peek_cpu(addr);
+}
+
+void Cart::poke_cpu(uint16_t addr, uint8_t x) {
+  assert(addr >= CPU_ADDR_START);
+  mapper_->poke_cpu(addr, x);
+}
+
+PeekPpu Cart::peek_ppu(uint16_t addr) {
+  assert(addr < PPU_ADDR_END);
+  return mapper_->peek_ppu(addr);
+}
+
+PokePpu Cart::poke_ppu(uint16_t addr, uint8_t x) {
+  assert(addr < PPU_ADDR_END);
+  return mapper_->poke_ppu(addr, x);
+}
+
+void Cart::load_cart(const std::filesystem::path &path) {
   std::ifstream is(path, std::ios::binary);
   if (!is) {
     throw std::runtime_error(
@@ -208,24 +148,26 @@ std::unique_ptr<Cart> read_cart(const std::filesystem::path &path) {
     );
   }
 
-  Header header = read_header(is);
-  Memory mem    = read_data(is, header);
+  CartHeader header = read_header(is);
+  mem_              = read_data(is, header);
 
   if (header.prg_ram_persistent()) {
-    mem.prg_ram_save_path = path;
-    mem.prg_ram_save_path.replace_extension(".sav");
+    mem_.prg_ram_save_path = path;
+    mem_.prg_ram_save_path.replace_extension(".sav");
   }
 
-  load_prg_ram(mem);
+  load_prg_ram(mem_);
 
   switch (header.mapper()) {
-  case 0: return std::make_unique<NRom>(header, std::move(mem));
-  case 1: return std::make_unique<Mmc1>(header, std::move(mem));
-  case 2: return std::make_unique<UxRom>(header, std::move(mem));
-  case 4: return std::make_unique<Mmc3>(header, std::move(mem));
+  case 0: mapper_ = std::make_unique<NRom>(header, mem_); break;
+  case 1: mapper_ = std::make_unique<Mmc1>(mem_); break;
+  case 2: mapper_ = std::make_unique<UxRom>(header, mem_); break;
+  case 4: mapper_ = std::make_unique<Mmc3>(header, mem_, *cpu_, *ppu_); break;
   default:
     throw std::runtime_error(
         std::format("unsupported ROM format: mapper {}", header.mapper())
     );
   }
+
+  step_ppu_enabled_ = mapper_->step_ppu_enabled();
 }

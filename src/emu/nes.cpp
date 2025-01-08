@@ -7,19 +7,23 @@ Nes::Nes() : powered_on_(false) {
   cpu_.set_apu(&apu_);
   cpu_.set_ppu(&ppu_);
   cpu_.set_input(&input_);
+  cpu_.set_cart(&cart_);
   ppu_.set_cpu(&cpu_);
+  ppu_.set_cart(&cart_);
   apu_.set_cpu(&cpu_);
+  cart_.set_cpu(&cpu_);
+  cart_.set_ppu(&ppu_);
 }
 
 void Nes::power_on() {
   if (powered_on_) {
     return;
   }
-  if (!cart_) {
+  if (!cart_.loaded()) {
     throw std::runtime_error("cannot power up without loading cart first");
   }
 
-  cart_->power_on();
+  cart_.power_on();
   cpu_.power_on();
   ppu_.power_on();
   apu_.power_on();
@@ -31,7 +35,7 @@ void Nes::power_off() {
   if (!powered_on_) {
     return;
   }
-  cart_->power_off();
+  cart_.power_off();
   powered_on_ = false;
 }
 
@@ -40,7 +44,7 @@ void Nes::reset() {
     throw std::runtime_error("system hasn't been powered up yet");
   }
 
-  cart_->reset();
+  cart_.reset();
   cpu_.reset();
   ppu_.reset();
   apu_.reset();
@@ -52,12 +56,7 @@ void Nes::load_cart(const std::string &path) {
     throw std::runtime_error("cannot load cart when system is powered up");
   }
 
-  cart_ = read_cart(path);
-
-  cpu_.set_cart(cart_.get());
-  ppu_.set_cart(cart_.get());
-  cart_->set_cpu(&cpu_);
-  cart_->set_ppu(&ppu_);
+  cart_.load_cart(path);
 }
 
 void Nes::step() {

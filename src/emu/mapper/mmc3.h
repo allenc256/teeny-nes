@@ -2,23 +2,20 @@
 
 #include "src/emu/cart.h"
 
-class Mmc3 : public Cart {
+class Mmc3 : public Mapper {
 public:
-  Mmc3(const Header &header, Memory &&mem);
+  Mmc3(const CartHeader &header, CartMemory &mem, Cpu &cpu, Ppu &ppu);
 
-  void set_cpu(Cpu *cpu) override;
-  void set_ppu(Ppu *ppu) override;
+  void power_on() override;
+  void reset() override;
 
   uint8_t peek_cpu(uint16_t addr) override;
   void    poke_cpu(uint16_t addr, uint8_t x) override;
   PeekPpu peek_ppu(uint16_t addr) override;
   PokePpu poke_ppu(uint16_t addr, uint8_t x) override;
 
-  bool step_ppu() override;
-
-protected:
-  void internal_power_on() override;
-  void internal_reset() override;
+  void step_ppu() override;
+  bool step_ppu_enabled() override { return true; }
 
 private:
   struct Registers {
@@ -46,10 +43,11 @@ private:
 
   void clock_IRQ_counter();
 
-  Registers  regs_;
-  IrqCounter irq_;
-  Cpu       *cpu_;
-  Ppu       *ppu_;
-  Mirroring  mirroring_;
-  Mirroring  orig_mirroring_;
+  Registers   regs_;
+  IrqCounter  irq_;
+  CartMemory &mem_;
+  Cpu        &cpu_;
+  Ppu        &ppu_;
+  Mirroring   mirroring_;
+  Mirroring   orig_mirroring_;
 };

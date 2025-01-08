@@ -278,9 +278,7 @@ void Ppu::step() {
     addr_bus_ = regs_.v;
   }
 
-  if (step_cart_) {
-    step_cart_ = cart_->step_ppu();
-  }
+  cart_->step_ppu();
 
   next_dot();
   cycles_++;

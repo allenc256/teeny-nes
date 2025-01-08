@@ -5,8 +5,8 @@
 
 #include "src/emu/mapper/uxrom.h"
 
-UxRom::UxRom(const Header &header, Memory &&mem)
-    : Cart(std::move(mem)),
+UxRom::UxRom(const CartHeader &header, CartMemory &mem)
+    : mem_(mem),
       mirroring_(header.mirroring()),
       curr_bank_(0),
       total_banks_(header.prg_rom_chunks()) {
@@ -39,9 +39,6 @@ void UxRom::poke_cpu(uint16_t addr, uint8_t x) {
     // no-op
   }
 }
-
-using PeekPpu = UxRom::PeekPpu;
-using PokePpu = UxRom::PokePpu;
 
 static constexpr uint16_t PATTERN_TABLE_END = 0x2000;
 static constexpr uint16_t NAME_TABLE_END    = 0x3000;

@@ -2,18 +2,17 @@
 
 #include "src/emu/cart.h"
 
-class Mmc1 : public Cart {
+class Mmc1 : public Mapper {
 public:
-  Mmc1(const Header &header, Memory &&mem);
+  Mmc1(CartMemory &mem);
+
+  void power_on() override;
+  void reset() override;
 
   uint8_t peek_cpu(uint16_t addr) override;
   void    poke_cpu(uint16_t addr, uint8_t x) override;
   PeekPpu peek_ppu(uint16_t addr) override;
   PokePpu poke_ppu(uint16_t addr, uint8_t x) override;
-
-protected:
-  void internal_power_on() override;
-  void internal_reset() override;
 
 private:
   struct Registers {
@@ -33,5 +32,6 @@ private:
 
   Mirroring mirroring() const;
 
-  Registers regs_;
+  Registers   regs_;
+  CartMemory &mem_;
 };

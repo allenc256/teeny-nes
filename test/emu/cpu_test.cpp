@@ -25,18 +25,20 @@ static bool compare_log_lines(const std::string &exp, const std::string &act) {
 }
 
 TEST(Cpu, nestest) {
-  auto cart = read_cart("test_data/nestest.nes");
+  Cart cart;
   Apu  apu;
   Cpu  cpu;
   Ppu  ppu;
 
-  std::ifstream log("test_data/nestest.log");
-
-  cpu.set_cart(cart.get());
+  cpu.set_cart(&cart);
   cpu.set_apu(&apu);
   cpu.set_ppu(&ppu);
   apu.set_cpu(&cpu);
   ppu.set_cpu(&cpu);
+
+  std::ifstream log("test_data/nestest.log");
+
+  cart.load_cart("test_data/nestest.nes");
   cpu.power_on();
   cpu.registers().PC = 0xc000;
 

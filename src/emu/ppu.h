@@ -45,12 +45,7 @@ public:
 
   void set_cpu(Cpu *cpu) { cpu_ = cpu; }
   void set_ready(bool ready) { ready_ = ready; }
-  void set_step_cart(bool step_cart) { step_cart_ = step_cart; }
-
-  void set_cart(Cart *cart) {
-    cart_      = cart;
-    step_cart_ = true;
-  }
+  void set_cart(Cart *cart) { cart_ = cart; }
 
   Registers     &registers() { return regs_; }
   int            scanline() const { return scanline_; }
@@ -237,7 +232,6 @@ private:
   Frame     front_frame_;
   int64_t   cycles_; // since reset
   int64_t   frames_; // since reset
-  bool      step_cart_;
 
   // Readiness for writes. This is a separate flag rather than just checking the
   // cycle or frame count so that we can force it to true in tests.

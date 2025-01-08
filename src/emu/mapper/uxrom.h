@@ -2,9 +2,9 @@
 
 #include "src/emu/cart.h"
 
-class UxRom : public Cart {
+class UxRom : public Mapper {
 public:
-  UxRom(const Header &header, Memory &&mem);
+  UxRom(const CartHeader &header, CartMemory &mem);
 
   uint8_t peek_cpu(uint16_t addr) override;
   void    poke_cpu(uint16_t addr, uint8_t x) override;
@@ -12,7 +12,8 @@ public:
   PokePpu poke_ppu(uint16_t addr, uint8_t x) override;
 
 private:
-  Mirroring mirroring_;
-  int       curr_bank_;
-  int       total_banks_;
+  CartMemory &mem_;
+  Mirroring   mirroring_;
+  int         curr_bank_;
+  int         total_banks_;
 };

@@ -13,12 +13,11 @@ static constexpr uint16_t PRG_BANK_1_START = 0xc000;
 static constexpr uint16_t CHR_BANK_0_START = 0x0000;
 static constexpr uint16_t CHR_BANK_1_START = 0x1000;
 
-Mmc1::Mmc1([[maybe_unused]] const Header &header, Memory &&mem)
-    : Cart(std::move(mem)) {}
+Mmc1::Mmc1(CartMemory &mem) : mem_(mem) {}
 
-void Mmc1::internal_power_on() { internal_reset(); }
+void Mmc1::power_on() { reset(); }
 
-void Mmc1::internal_reset() {
+void Mmc1::reset() {
   std::memset(&regs_, 0, sizeof(regs_));
   regs_.shift   = SHIFT_REG_RESET_VAL;
   regs_.control = CONTROL_REG_RESET_VAL;
@@ -44,7 +43,7 @@ void Mmc1::poke_cpu(uint16_t addr, uint8_t x) {
   }
 }
 
-Mmc1::PeekPpu Mmc1::peek_ppu(uint16_t addr) {
+PeekPpu Mmc1::peek_ppu(uint16_t addr) {
   if (addr >= 0x3000) {
     return PeekPpu::make_value(0);
   } else if (addr >= 0x2000) {
@@ -54,7 +53,7 @@ Mmc1::PeekPpu Mmc1::peek_ppu(uint16_t addr) {
   }
 }
 
-Mmc1::PokePpu Mmc1::poke_ppu(uint16_t addr, uint8_t x) {
+PokePpu Mmc1::poke_ppu(uint16_t addr, uint8_t x) {
   if (addr >= 0x3000) {
     return PokePpu::make_success();
   } else if (addr >= 0x2000) {
@@ -134,7 +133,7 @@ int Mmc1::map_chr_rom_addr(uint16_t addr) const {
   return (bank << 12) + offset;
 }
 
-Cart::Mirroring Mmc1::mirroring() const {
+Mirroring Mmc1::mirroring() const {
   switch (regs_.control & 3) {
   case 0: return MIRROR_SCREEN_A_ONLY;
   case 1: return MIRROR_SCREEN_B_ONLY;

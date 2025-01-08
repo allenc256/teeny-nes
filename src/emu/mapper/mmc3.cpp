@@ -5,9 +5,10 @@
 #include "src/emu/mapper/mmc3.h"
 #include "src/emu/ppu.h"
 
-Mmc3::Mmc3(const Header &header, Memory &&mem)
-    : Cart(std::move(mem)),
-      cpu_(nullptr) {
+Mmc3::Mmc3(const CartHeader &header, CartMemory &mem, Cpu &cpu, Ppu &ppu)
+    : mem_(mem),
+      cpu_(cpu),
+      ppu_(ppu) {
   if (header.mirroring_specified()) {
     orig_mirroring_ = header.mirroring();
   } else {
@@ -15,11 +16,9 @@ Mmc3::Mmc3(const Header &header, Memory &&mem)
   }
 }
 
-void Mmc3::set_cpu(Cpu *cpu) { cpu_ = cpu; }
-void Mmc3::set_ppu(Ppu *ppu) { ppu_ = ppu; }
-void Mmc3::internal_power_on() { internal_reset(); }
+void Mmc3::power_on() { reset(); }
 
-void Mmc3::internal_reset() {
+void Mmc3::reset() {
   std::memset(&regs_, 0, sizeof(regs_));
   std::memset(&irq_, 0, sizeof(irq_));
   mirroring_ = orig_mirroring_;
@@ -74,7 +73,7 @@ void Mmc3::poke_cpu(uint16_t addr, uint8_t x) {
   default: // 0xe000..0xffff
     if (even) {
       irq_.enabled = false;
-      cpu_->clear_IRQ(Cpu::IrqSource::EXTERNAL);
+      cpu_.clear_IRQ(Cpu::IrqSource::EXTERNAL);
     } else {
       irq_.enabled = true;
     }
@@ -108,7 +107,7 @@ void Mmc3::write_bank_data(uint8_t x) {
   regs_.R[index] = x;
 }
 
-Mmc3::PeekPpu Mmc3::peek_ppu(uint16_t addr) {
+PeekPpu Mmc3::peek_ppu(uint16_t addr) {
   if (addr < 0x2000) {
     return PeekPpu::make_value(mem_.chr_rom[map_chr_rom_addr(addr)]);
   } else if (addr < 0x3000) {
@@ -118,7 +117,7 @@ Mmc3::PeekPpu Mmc3::peek_ppu(uint16_t addr) {
   }
 }
 
-Mmc3::PokePpu Mmc3::poke_ppu(uint16_t addr, uint8_t x) {
+PokePpu Mmc3::poke_ppu(uint16_t addr, uint8_t x) {
   if (addr < 0x2000) {
     if (!mem_.chr_rom_readonly) {
       mem_.chr_rom[map_chr_rom_addr(addr)] = x;
@@ -189,17 +188,16 @@ int Mmc3::map_chr_rom_addr(uint16_t ppu_addr) {
   return chr_addr;
 }
 
-bool Mmc3::step_ppu() {
-  bool curr_a12    = ppu_->addr_bus() & 0x1000;
+void Mmc3::step_ppu() {
+  bool curr_a12    = ppu_.addr_bus() & 0x1000;
   bool rising_edge = curr_a12 && !irq_.prev_a12;
   if (rising_edge) {
-    if (ppu_->cycles() - irq_.prev_cycles >= cpu_to_ppu_cycles(3)) {
+    if (ppu_.cycles() - irq_.prev_cycles >= cpu_to_ppu_cycles(3)) {
       clock_IRQ_counter();
     }
-    irq_.prev_cycles = ppu_->cycles();
+    irq_.prev_cycles = ppu_.cycles();
   }
   irq_.prev_a12 = curr_a12;
-  return true;
 }
 
 void Mmc3::clock_IRQ_counter() {
@@ -210,6 +208,6 @@ void Mmc3::clock_IRQ_counter() {
     irq_.counter--;
   }
   if (irq_.counter == 0 && irq_.enabled) {
-    cpu_->signal_IRQ(Cpu::IrqSource::EXTERNAL);
+    cpu_.signal_IRQ(Cpu::IrqSource::EXTERNAL);
   }
 }

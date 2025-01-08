@@ -1,6 +1,7 @@
 #include <format>
 #include <gtest/gtest.h>
 
+#include "src/emu/cart.h"
 #include "src/emu/ppu.h"
 
 void check_int_regs(const Ppu::Registers &exp, const Ppu::Registers &act) {
@@ -111,9 +112,10 @@ TEST(Ppu, internal_registers_2) {
 TEST(Ppu, ready) {
   static constexpr int cycles_in_frame = 262 * 341;
 
-  Ppu ppu;
+  Cart cart;
+  Ppu  ppu;
 
-  ppu.set_step_cart(false);
+  ppu.set_cart(&cart);
   ppu.power_on();
   ASSERT_EQ(0, ppu.cycles());
   ASSERT_FALSE(ppu.ready());
