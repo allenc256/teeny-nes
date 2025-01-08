@@ -107,7 +107,11 @@ static void load_prg_ram(CartMemory &mem) {
 
 bool Cart::loaded() const { return mapper_.get() != nullptr; }
 void Cart::power_on() { mapper_->power_on(); }
-void Cart::power_off() { save_prg_ram(mem_); }
+
+void Cart::power_off() {
+  gg_codes_.clear();
+  save_prg_ram(mem_);
+}
 
 void Cart::reset() {
   save_prg_ram(mem_);
@@ -122,7 +126,18 @@ void Cart::step_ppu() {
 
 uint8_t Cart::peek_cpu(uint16_t addr) {
   assert(addr >= CPU_ADDR_START);
-  return mapper_->peek_cpu(addr);
+
+  uint8_t x = mapper_->peek_cpu(addr);
+
+  if (!gg_codes_.empty()) {
+    for (auto &code : gg_codes_) {
+      if (code.applies(addr, x)) {
+        return code.value();
+      }
+    }
+  }
+
+  return x;
 }
 
 void Cart::poke_cpu(uint16_t addr, uint8_t x) {

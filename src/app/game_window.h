@@ -7,6 +7,7 @@ class GameWindow {
 public:
   GameWindow(Nes &nes, SDL_Renderer *renderer);
 
+  bool focused() const { return focused_; }
   void render();
 
 private:
@@ -14,4 +15,5 @@ private:
 
   Nes          &nes_;
   SDLTextureRes frame_;
+  bool          focused_;
 };

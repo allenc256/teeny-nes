@@ -17,6 +17,10 @@ static constexpr SDL_Scancode KEYMAP[] = {
 };
 
 int KeyboardController::poll() {
+  if (!enabled_) {
+    return 0;
+  }
+
   SDL_PumpEvents();
   const Uint8 *states = SDL_GetKeyboardState(NULL);
   int          result = 0;

@@ -13,6 +13,7 @@ static constexpr int WINDOW_HEIGHT = 539;
 AppWindow::AppWindow()
     : paused_(false),
       show_ppu_window_(false),
+      show_gg_window_(false),
       window_(
           "teeny-nes",
           (int)(WINDOW_WIDTH * sdl_.scale_factor()),
@@ -21,7 +22,8 @@ AppWindow::AppWindow()
       renderer_(window_.get()),
       imgui_(window_.get(), renderer_.get()),
       game_window_(nes_, renderer_.get()),
-      ppu_window_(nes_, renderer_.get()) {
+      ppu_window_(nes_, renderer_.get()),
+      gg_window_(nes_) {
   nes_.input().set_controller(&keyboard_, 0);
 
   ImGui::GetIO().FontGlobalScale = sdl_.scale_factor();
@@ -59,6 +61,7 @@ void AppWindow::step() {
   if (paused_) {
     return;
   }
+  keyboard_.set_enabled(game_window_.focused());
   timer_.run(nes_);
 }
 
@@ -99,6 +102,9 @@ void AppWindow::render_imgui() {
   if (show_ppu_window_) {
     ppu_window_.render();
   }
+  if (show_gg_window_) {
+    gg_window_.render();
+  }
 
   ImGui::Render();
 }
@@ -121,6 +127,7 @@ void AppWindow::render_imgui_menu() {
       ImGui::MenuItem(
           "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_on()
       );
+      ImGui::MenuItem("Game Genie", nullptr, &show_gg_window_);
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();

@@ -1,10 +1,11 @@
 #pragma once
 
-#include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <vector>
 
+#include "src/emu/game_genie.h"
 #include "src/emu/mapper/mapper.h"
 
 class Cart {
@@ -30,9 +31,13 @@ public:
 
   void step_ppu();
 
-  CartMemory              mem_;
-  std::unique_ptr<Mapper> mapper_;
-  Cpu                    *cpu_              = nullptr;
-  Ppu                    *ppu_              = nullptr;
-  bool                    step_ppu_enabled_ = false;
+  std::vector<GameGenieCode> &gg_codes() { return gg_codes_; }
+
+private:
+  CartMemory                 mem_;
+  std::unique_ptr<Mapper>    mapper_;
+  Cpu                       *cpu_              = nullptr;
+  Ppu                       *ppu_              = nullptr;
+  bool                       step_ppu_enabled_ = false;
+  std::vector<GameGenieCode> gg_codes_;
 };

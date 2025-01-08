@@ -13,7 +13,8 @@ static constexpr float FRAME_ASPECT =
 
 GameWindow::GameWindow(Nes &nes, SDL_Renderer *renderer)
     : nes_(nes),
-      frame_(renderer, FRAME_WIDTH, FRAME_HEIGHT) {}
+      frame_(renderer, FRAME_WIDTH, FRAME_HEIGHT),
+      focused_(false) {}
 
 void GameWindow::render() {
   if (!nes_.is_powered_on()) {
@@ -30,6 +31,8 @@ void GameWindow::render() {
   ImGui::SetNextWindowSize(viewport->WorkSize);
 
   if (ImGui::Begin("Game", nullptr, flags)) {
+    focused_ = ImGui::IsWindowFocused();
+
     prepare_frame();
 
     ImVec2 content_region = ImGui::GetContentRegionAvail();
