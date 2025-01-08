@@ -12,11 +12,11 @@ Nes::Nes() : powered_on_(false) {
 }
 
 void Nes::power_on() {
+  if (powered_on_) {
+    return;
+  }
   if (!cart_) {
     throw std::runtime_error("cannot power up without loading cart first");
-  }
-  if (powered_on_) {
-    throw std::runtime_error("system already powered up");
   }
 
   cart_->power_on();
@@ -27,7 +27,13 @@ void Nes::power_on() {
   powered_on_ = true;
 }
 
-void Nes::power_off() { powered_on_ = false; }
+void Nes::power_off() {
+  if (!powered_on_) {
+    return;
+  }
+  cart_->power_off();
+  powered_on_ = false;
+}
 
 void Nes::reset() {
   if (!powered_on_) {
@@ -46,8 +52,7 @@ void Nes::load_cart(const std::string &path) {
     throw std::runtime_error("cannot load cart when system is powered up");
   }
 
-  std::ifstream is(path, std::ios::binary);
-  cart_ = read_cart(is);
+  cart_ = read_cart(path);
 
   cpu_.set_cart(cart_.get());
   ppu_.set_cart(cart_.get());

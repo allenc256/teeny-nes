@@ -138,12 +138,85 @@ Memory read_data(std::ifstream &is, const Header &header) {
   mem.prg_ram      = std::make_unique<uint8_t[]>(mem.prg_ram_size);
   std::memset(mem.prg_ram.get(), 0, mem.prg_ram_size);
 
+  mem.prg_ram_persistent = header.prg_ram_persistent();
+
   return mem;
 }
 
-std::unique_ptr<Cart> read_cart(std::ifstream &is) {
+Cart::Cart(Memory &&mem) : mem_(std::move(mem)) {}
+
+static void save_prg_ram(const Memory &mem) {
+  if (!mem.prg_ram_persistent || mem.prg_ram_save_path.empty()) {
+    return;
+  }
+
+  std::ofstream os(mem.prg_ram_save_path, std::ios::binary);
+  if (!os) {
+    std::cerr << std::format(
+        "failed to open PRG RAM file for writing: {}\n",
+        mem.prg_ram_save_path.c_str()
+    );
+    return;
+  }
+
+  if (!os.write((const char *)mem.prg_ram.get(), mem.prg_ram_size)) {
+    std::cerr << std::format(
+        "failed to write PRG RAM file: {}\n", mem.prg_ram_save_path.c_str()
+    );
+    return;
+  }
+}
+
+static void load_prg_ram(Memory &mem) {
+  if (!mem.prg_ram_persistent || mem.prg_ram_save_path.empty()) {
+    return;
+  }
+  if (!std::filesystem::exists(mem.prg_ram_save_path)) {
+    return;
+  }
+
+  std::ifstream is(mem.prg_ram_save_path, std::ios::binary);
+  if (!is) {
+    std::cerr << std::format(
+        "failed to open PRG RAM file for reading: {}\n",
+        mem.prg_ram_save_path.c_str()
+    );
+    return;
+  }
+
+  if (!is.read((char *)mem.prg_ram.get(), mem.prg_ram_size)) {
+    std::cerr << std::format(
+        "failed to read PRG RAM file: {}\n", mem.prg_ram_save_path.c_str()
+    );
+    return;
+  }
+}
+
+void Cart::power_on() { internal_power_on(); }
+void Cart::power_off() { save_prg_ram(mem_); }
+
+void Cart::reset() {
+  save_prg_ram(mem_);
+  internal_reset();
+}
+
+std::unique_ptr<Cart> read_cart(const std::filesystem::path &path) {
+  std::ifstream is(path, std::ios::binary);
+  if (!is) {
+    throw std::runtime_error(
+        std::format("failed to open file: {}", path.c_str())
+    );
+  }
+
   Header header = read_header(is);
   Memory mem    = read_data(is, header);
+
+  if (header.prg_ram_persistent()) {
+    mem.prg_ram_save_path = path;
+    mem.prg_ram_save_path.replace_extension(".sav");
+  }
+
+  load_prg_ram(mem);
 
   switch (header.mapper()) {
   case 0: return std::make_unique<NRom>(header, std::move(mem));

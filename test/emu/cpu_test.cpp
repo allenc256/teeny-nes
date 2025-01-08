@@ -25,11 +25,10 @@ static bool compare_log_lines(const std::string &exp, const std::string &act) {
 }
 
 TEST(Cpu, nestest) {
-  std::ifstream is("test_data/nestest.nes", std::ios::binary);
-  auto          cart = read_cart(is);
-  Apu           apu;
-  Cpu           cpu;
-  Ppu           ppu;
+  auto cart = read_cart("test_data/nestest.nes");
+  Apu  apu;
+  Cpu  cpu;
+  Ppu  ppu;
 
   std::ifstream log("test_data/nestest.log");
 

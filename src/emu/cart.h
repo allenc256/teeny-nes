@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 
 class Cpu;
@@ -101,14 +102,19 @@ public:
     int                        chr_rom_size;
     int                        prg_ram_size;
     bool                       chr_rom_readonly;
+    bool                       prg_ram_persistent;
+    std::filesystem::path      prg_ram_save_path;
   };
 
+  Cart(Memory &&mem);
   virtual ~Cart() = default;
 
   virtual void set_cpu(Cpu *) {}
   virtual void set_ppu(Ppu *) {}
-  virtual void power_on() {}
-  virtual void reset() {}
+
+  void power_on();
+  void power_off();
+  void reset();
 
   virtual uint8_t peek_cpu(uint16_t addr)            = 0;
   virtual void    poke_cpu(uint16_t addr, uint8_t x) = 0;
@@ -121,7 +127,12 @@ public:
   virtual bool step_ppu() { return false; }
 
 protected:
+  virtual void internal_power_on() {}
+  virtual void internal_reset() {}
+
   static uint16_t mirrored_nt_addr(Mirroring mirroring, uint16_t addr);
+
+  Memory mem_;
 };
 
-std::unique_ptr<Cart> read_cart(std::ifstream &is);
+std::unique_ptr<Cart> read_cart(const std::filesystem::path &path);
