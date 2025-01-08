@@ -11,11 +11,13 @@ static constexpr uint16_t PRG_ROM_MASK_256  = 0b0111111111111111;
 static constexpr uint16_t PATTERN_TABLE_END = 0x2000;
 static constexpr uint16_t NAME_TABLE_END    = 0x3000;
 
-void NRom::power_on() { reset(); }
-void NRom::reset() { std::memset(mem_.prg_ram.get(), 0, mem_.prg_ram_size); }
+void NRom::internal_power_on() { internal_reset(); }
+void NRom::internal_reset() {
+  std::memset(mem_.prg_ram.get(), 0, mem_.prg_ram_size);
+}
 
 NRom::NRom(const Header &header, Memory &&mem)
-    : mem_(std::move(mem)),
+    : Cart(std::move(mem)),
       mirroring_(header.mirroring()) {
   if (header.prg_rom_chunks() == 1) {
     prg_rom_mask_ = PRG_ROM_MASK_128;

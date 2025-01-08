@@ -8,8 +8,6 @@ public:
 
   void set_cpu(Cpu *cpu) override;
   void set_ppu(Ppu *ppu) override;
-  void power_on() override;
-  void reset() override;
 
   uint8_t peek_cpu(uint16_t addr) override;
   void    poke_cpu(uint16_t addr, uint8_t x) override;
@@ -17,6 +15,10 @@ public:
   PokePpu poke_ppu(uint16_t addr, uint8_t x) override;
 
   bool step_ppu() override;
+
+protected:
+  void internal_power_on() override;
+  void internal_reset() override;
 
 private:
   struct Registers {
@@ -44,7 +46,6 @@ private:
 
   void clock_IRQ_counter();
 
-  Memory     mem_;
   Registers  regs_;
   IrqCounter irq_;
   Cpu       *cpu_;

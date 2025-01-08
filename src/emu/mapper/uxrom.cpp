@@ -6,15 +6,17 @@
 #include "src/emu/mapper/uxrom.h"
 
 UxRom::UxRom(const Header &header, Memory &&mem)
-    : mem_(std::move(mem)),
+    : Cart(std::move(mem)),
       mirroring_(header.mirroring()),
       curr_bank_(0),
       total_banks_(header.prg_rom_chunks()) {
   assert(total_banks_ > 0);
 }
 
-void UxRom::power_on() { reset(); }
-void UxRom::reset() { std::memset(mem_.prg_ram.get(), 0, mem_.prg_ram_size); }
+void UxRom::internal_power_on() { internal_reset(); }
+void UxRom::internal_reset() {
+  std::memset(mem_.prg_ram.get(), 0, mem_.prg_ram_size);
+}
 
 static constexpr uint16_t CPU_BANK_0_START = 0x8000;
 static constexpr uint16_t CPU_BANK_1_START = 0xc000;
