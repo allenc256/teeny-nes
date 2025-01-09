@@ -173,9 +173,12 @@ public:
   void reset();
   void step();
 
-  std::string disassemble();
+  uint16_t decode_addr(const OpCode &op);
+  uint8_t  decode_mem(const OpCode &op);
 
   static const std::array<OpCode, 256> &all_op_codes();
+  static const std::string_view        *addr_mode_names();
+  static const std::string_view        *instruction_names();
 
 private:
   void step_ADC(const OpCode &op);
@@ -262,9 +265,6 @@ private:
 
   void set_flag(Flags flag, bool value);
   bool get_flag(Flags flag) const;
-
-  uint16_t decode_addr(const OpCode &op);
-  uint8_t  decode_mem(const OpCode &op);
 
   static constexpr uint16_t STACK_START  = 0x0100;
   static constexpr uint16_t RAM_END      = 0x2000;

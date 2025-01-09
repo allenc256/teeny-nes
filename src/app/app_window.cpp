@@ -13,7 +13,6 @@ static constexpr int WINDOW_HEIGHT = 539;
 
 AppWindow::AppWindow()
     : paused_(false),
-      show_ppu_window_(false),
       show_gg_window_(false),
       window_(
           "teeny-nes",
@@ -23,7 +22,6 @@ AppWindow::AppWindow()
       renderer_(window_.get()),
       imgui_(window_.get(), renderer_.get()),
       game_window_(nes_, renderer_.get()),
-      ppu_window_(nes_, renderer_.get()),
       gg_window_(nes_) {
   nes_.input().set_controller(&keyboard_, 0);
 
@@ -79,7 +77,6 @@ void AppWindow::render() {
     return;
   }
 
-  show_ppu_window_ &= nes_.is_powered_on();
   show_gg_window_ &= nes_.is_powered_on();
 
   render_imgui();
@@ -108,9 +105,6 @@ void AppWindow::render_imgui() {
   if (nes_.is_powered_on()) {
     game_window_.render();
   }
-  if (show_ppu_window_) {
-    ppu_window_.render();
-  }
   if (show_gg_window_) {
     gg_window_.render();
   }
@@ -124,6 +118,7 @@ void AppWindow::render_imgui_menu() {
       if (ImGui::MenuItem("Open")) {
         open_rom();
       }
+      ImGui::Separator();
       bool prev_paused = paused_;
       ImGui::MenuItem("Pause", nullptr, &paused_, nes_.is_powered_on());
       if (prev_paused && !paused_) {
@@ -132,9 +127,7 @@ void AppWindow::render_imgui_menu() {
       if (ImGui::MenuItem("Power Off", nullptr, false, nes_.is_powered_on())) {
         power_off();
       }
-      ImGui::MenuItem(
-          "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_on()
-      );
+      ImGui::Separator();
       ImGui::MenuItem(
           "Game Genie Codes", nullptr, &show_gg_window_, nes_.is_powered_on()
       );

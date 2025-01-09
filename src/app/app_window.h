@@ -8,7 +8,6 @@
 #include "src/app/imgui.h"
 #include "src/app/keyboard.h"
 #include "src/app/nfd.h"
-#include "src/app/ppu_window.h"
 #include "src/app/sdl.h"
 #include "src/emu/nes.h"
 #include "src/emu/timer.h"
@@ -41,7 +40,6 @@ private:
   std::filesystem::path pref_path_;
   std::string           rom_name_;
 
-  bool show_ppu_window_;
   bool show_gg_window_;
 
   Nfd               nfd_;
@@ -51,6 +49,5 @@ private:
   SDLAudioDeviceRes audio_dev_;
   ImguiRes          imgui_;
   GameWindow        game_window_;
-  PpuWindow         ppu_window_;
   GameGenieWindow   gg_window_;
 };
