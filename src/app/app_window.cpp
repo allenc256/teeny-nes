@@ -127,7 +127,7 @@ void AppWindow::render_imgui_menu() {
       ImGui::MenuItem(
           "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_on()
       );
-      ImGui::MenuItem("Game Genie", nullptr, &show_gg_window_);
+      ImGui::MenuItem("Game Genie Codes", nullptr, &show_gg_window_);
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();
@@ -148,7 +148,7 @@ void AppWindow::open_rom() {
 static constexpr int AUDIO_QUEUE_TARGET = 2048;
 
 void AppWindow::queue_audio() {
-  if (paused_) {
+  if (paused_ || !nes_.is_powered_on()) {
     return;
   }
 

@@ -186,3 +186,6 @@ void Cart::load_cart(const std::filesystem::path &path) {
 
   step_ppu_enabled_ = mapper_->step_ppu_enabled();
 }
+
+void Cart::clear_gg_codes() { gg_codes_.clear(); }
+void Cart::add_gg_code(std::string_view code) { gg_codes_.emplace_back(code); }

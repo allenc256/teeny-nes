@@ -31,7 +31,13 @@ public:
 
   void step_ppu();
 
-  std::vector<GameGenieCode> &gg_codes() { return gg_codes_; }
+  void clear_gg_codes();
+  void add_gg_code(std::string_view code);
+
+  void load_persistent_ram(const std::filesystem::path &path);
+  void save_persistent_ram(const std::filesystem::path &path);
+  void load_gg_codes(const std::filesystem::path &path);
+  void save_gg_codes(const std::filesystem::path &path);
 
 private:
   CartMemory                 mem_;

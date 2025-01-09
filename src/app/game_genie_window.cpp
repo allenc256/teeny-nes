@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <format>
+#include <fstream>
 #include <imgui.h>
 
 #include "src/app/game_genie_window.h"
@@ -7,39 +8,117 @@
 
 void GameGenieWindow::render() {
   if (ImGui::Begin("Game Genie Codes", nullptr)) {
-    auto &codes     = nes_.cart().gg_codes();
-    float width     = ImGui::GetFontSize() * 10;
-    float spacing   = ImGui::GetFontSize() * 11;
-    int   to_delete = -1;
+    float width1      = ImGui::GetFontSize() * 6;
+    float width2      = ImGui::GetFontSize() * 20;
+    bool  should_sync = false;
+    int   to_delete   = -1;
 
-    for (std::size_t i = 0; i < codes.size(); i++) {
-      ImGui::PushItemWidth(width);
-      ImGui::Text("%s", codes[i].code());
-      ImGui::PopItemWidth();
-      ImGui::SameLine(spacing);
-      ImGui::PushID(i);
-      if (ImGui::Button("Delete")) {
-        to_delete = i;
+    if (ImGui::BeginTable("gg_codes", 4, ImGuiTableFlags_SizingFixedFit)) {
+      for (std::size_t i = 0; i < codes_.size(); i++) {
+        ImGui::TableNextColumn();
+        {
+          ImGui::PushItemWidth(width1);
+          ImGui::Text("%s", codes_[i].code.c_str());
+          ImGui::PopItemWidth();
+        }
+        ImGui::TableNextColumn();
+        {
+          ImGui::PushItemWidth(width2);
+          ImGui::TextWrapped("%s", codes_[i].desc.c_str());
+          ImGui::PopItemWidth();
+        }
+        ImGui::TableNextColumn();
+        {
+          ImGui::PushID(i);
+          bool was_enabled = codes_[i].enabled;
+          ImGui::Checkbox("Enabled", &codes_[i].enabled);
+          should_sync |= was_enabled ^ codes_[i].enabled;
+          ImGui::PopID();
+        }
+        ImGui::TableNextColumn();
+        {
+          ImGui::PushID(i);
+          if (ImGui::Button("Delete")) {
+            to_delete = i;
+          }
+          ImGui::PopID();
+        }
       }
-      ImGui::PopID();
-    }
 
-    ImGui::PushItemWidth(width);
-    ImGui::InputTextWithHint(
-        "##new_code", "New Code", new_code_, sizeof(new_code_)
-    );
-    ImGui::PopItemWidth();
-    ImGui::SameLine(spacing);
-    if (ImGui::Button("Add")) {
-      if (GameGenieCode::is_valid_code(new_code_)) {
-        codes.emplace_back(new_code_);
-        new_code_[0] = 0;
+      ImGui::TableNextColumn();
+      {
+        ImGui::PushItemWidth(width1);
+        ImGui::InputTextWithHint(
+            "##new_code", "New Code", new_code_, sizeof(new_code_)
+        );
+        ImGui::PopItemWidth();
       }
+      ImGui::TableNextColumn();
+      {
+        ImGui::PushItemWidth(width2);
+        ImGui::InputTextWithHint(
+            "##new_desc", "Description", new_desc_, sizeof(new_desc_)
+        );
+        ImGui::PopItemWidth();
+      }
+      ImGui::TableNextColumn();
+      { ImGui::Checkbox("Enabled", &new_enabled_); }
+      ImGui::TableNextColumn();
+      {
+        if (ImGui::Button("Add")) {
+          if (GameGenieCode::is_valid_code(new_code_)) {
+            codes_.push_back(
+                {.enabled = new_enabled_, .code = new_code_, .desc = new_desc_}
+            );
+            new_code_[0] = 0;
+            new_desc_[0] = 0;
+            should_sync  = true;
+          }
+        }
+      }
+
+      ImGui::EndTable();
     }
 
     if (to_delete >= 0) {
-      codes.erase(codes.begin() + to_delete);
+      codes_.erase(codes_.begin() + to_delete);
+      should_sync = true;
+    }
+
+    if (should_sync) {
+      sync_codes();
     }
   }
   ImGui::End();
+}
+
+void GameGenieWindow::sync_codes() {
+  nes_.cart().clear_gg_codes();
+  for (auto &code : codes_) {
+    if (code.enabled) {
+      nes_.cart().add_gg_code(code.code);
+    }
+  }
+}
+
+void GameGenieWindow::save_codes(const std::filesystem::path &path) {
+  std::ofstream ofs(path);
+  if (!ofs) {
+    throw std::runtime_error(
+        std::format("failed to open file for writing: {}", path.string())
+    );
+  }
+
+  for (auto &code : codes_) {
+    ofs << std::format(
+        "{:<10} {:<10} {}\n",
+        code.code,
+        code.enabled ? "enabled" : "disabled",
+        code.desc
+    );
+  }
+}
+
+void GameGenieWindow::load_codes(const std::filesystem::path &path) {
+  //
 }
