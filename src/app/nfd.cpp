@@ -27,7 +27,7 @@ void Nfd::init() {
   }
 }
 
-std::optional<std::string>
+std::optional<std::filesystem::path>
 Nfd::open_dialog(nfdu8filteritem_t *filters, int count) {
   init();
 
@@ -38,7 +38,7 @@ Nfd::open_dialog(nfdu8filteritem_t *filters, int count) {
   args.filterCount   = count;
   nfdresult_t result = NFD_OpenDialogU8_With(&out_path, &args);
   if (result == NFD_OKAY) {
-    std::optional<std::string> result = out_path;
+    std::optional<std::filesystem::path> result = out_path;
     NFD_FreePathU8(out_path);
     return result;
   } else if (result == NFD_CANCEL) {

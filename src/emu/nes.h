@@ -1,5 +1,7 @@
 #pragma once
 
+#include <filesystem>
+
 #include "src/emu/apu.h"
 #include "src/emu/cart.h"
 #include "src/emu/cpu.h"
@@ -22,7 +24,7 @@ public:
   void step();
   bool is_powered_on() const { return powered_on_; }
 
-  void load_cart(const std::string &path);
+  void load_cart(const std::filesystem::path &path);
 
 private:
   Cpu   cpu_;

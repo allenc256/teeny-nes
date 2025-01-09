@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <filesystem>
 
 #include "src/app/game_genie_window.h"
 #include "src/app/game_window.h"
@@ -29,10 +30,16 @@ private:
   void open_rom();
   void queue_audio();
 
+  void power_on();
+  void power_off();
+
   Nes                nes_;
   KeyboardController keyboard_;
   Timer              timer_;
   bool               paused_;
+
+  std::filesystem::path pref_path_;
+  std::string           rom_name_;
 
   bool show_ppu_window_;
   bool show_gg_window_;

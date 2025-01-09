@@ -1,8 +1,8 @@
 #pragma once
 
+#include <filesystem>
 #include <nfd.h>
 #include <optional>
-#include <string>
 
 class Nfd {
 public:
@@ -14,7 +14,8 @@ public:
   Nfd();
   ~Nfd();
 
-  std::optional<std::string> open_dialog(nfdu8filteritem_t *filters, int count);
+  std::optional<std::filesystem::path>
+  open_dialog(nfdu8filteritem_t *filters, int count);
 
 private:
   void init();

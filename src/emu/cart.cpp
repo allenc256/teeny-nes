@@ -58,65 +58,10 @@ CartMemory read_data(std::ifstream &is, const CartHeader &header) {
   return mem;
 }
 
-static void save_prg_ram(const CartMemory &mem) {
-  if (!mem.prg_ram_persistent || mem.prg_ram_save_path.empty()) {
-    return;
-  }
-
-  std::ofstream os(mem.prg_ram_save_path, std::ios::binary);
-  if (!os) {
-    std::cerr << std::format(
-        "failed to open PRG RAM file for writing: {}\n",
-        mem.prg_ram_save_path.c_str()
-    );
-    return;
-  }
-
-  if (!os.write((const char *)mem.prg_ram.get(), mem.prg_ram_size)) {
-    std::cerr << std::format(
-        "failed to write PRG RAM file: {}\n", mem.prg_ram_save_path.c_str()
-    );
-    return;
-  }
-}
-
-static void load_prg_ram(CartMemory &mem) {
-  if (!mem.prg_ram_persistent || mem.prg_ram_save_path.empty()) {
-    return;
-  }
-  if (!std::filesystem::exists(mem.prg_ram_save_path)) {
-    return;
-  }
-
-  std::ifstream is(mem.prg_ram_save_path, std::ios::binary);
-  if (!is) {
-    std::cerr << std::format(
-        "failed to open PRG RAM file for reading: {}\n",
-        mem.prg_ram_save_path.c_str()
-    );
-    return;
-  }
-
-  if (!is.read((char *)mem.prg_ram.get(), mem.prg_ram_size)) {
-    std::cerr << std::format(
-        "failed to read PRG RAM file: {}\n", mem.prg_ram_save_path.c_str()
-    );
-    return;
-  }
-}
-
 bool Cart::loaded() const { return mapper_.get() != nullptr; }
 void Cart::power_on() { mapper_->power_on(); }
-
-void Cart::power_off() {
-  gg_codes_.clear();
-  save_prg_ram(mem_);
-}
-
-void Cart::reset() {
-  save_prg_ram(mem_);
-  mapper_->reset();
-}
+void Cart::power_off() { gg_codes_.clear(); }
+void Cart::reset() { mapper_->reset(); }
 
 void Cart::step_ppu() {
   if (step_ppu_enabled_) {
@@ -166,13 +111,6 @@ void Cart::load_cart(const std::filesystem::path &path) {
   CartHeader header = read_header(is);
   mem_              = read_data(is, header);
 
-  if (header.prg_ram_persistent()) {
-    mem_.prg_ram_save_path = path;
-    mem_.prg_ram_save_path.replace_extension(".sav");
-  }
-
-  load_prg_ram(mem_);
-
   switch (header.mapper()) {
   case 0: mapper_ = std::make_unique<NRom>(header, mem_); break;
   case 1: mapper_ = std::make_unique<Mmc1>(mem_); break;
@@ -185,4 +123,52 @@ void Cart::load_cart(const std::filesystem::path &path) {
   }
 
   step_ppu_enabled_ = mapper_->step_ppu_enabled();
+}
+
+void Cart::clear_gg_codes() { gg_codes_.clear(); }
+void Cart::add_gg_code(std::string_view code) { gg_codes_.emplace_back(code); }
+
+void Cart::save_sram(const std::filesystem::path &path) {
+  if (!mem_.prg_ram_persistent) {
+    return;
+  }
+
+  std::ofstream ofs(path, std::ios::binary);
+  if (!ofs) {
+    std::cerr << std::format(
+        "failed to open PRG RAM file for writing: {}\n", path.string()
+    );
+    return;
+  }
+
+  if (!ofs.write((const char *)mem_.prg_ram.get(), mem_.prg_ram_size)) {
+    std::cerr << std::format(
+        "failed to write PRG RAM file: {}\n", path.string()
+    );
+    return;
+  }
+}
+
+void Cart::load_sram(const std::filesystem::path &path) {
+  if (!mem_.prg_ram_persistent) {
+    return;
+  }
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  std::ifstream ifs(path, std::ios::binary);
+  if (!ifs) {
+    std::cerr << std::format(
+        "failed to open PRG RAM file for reading: {}\n", path.string()
+    );
+    return;
+  }
+
+  if (!ifs.read((char *)mem_.prg_ram.get(), mem_.prg_ram_size)) {
+    std::cerr << std::format(
+        "failed to read PRG RAM file: {}\n", path.string()
+    );
+    return;
+  }
 }

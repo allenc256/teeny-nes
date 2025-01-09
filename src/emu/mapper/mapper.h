@@ -98,7 +98,6 @@ struct CartMemory {
   int                        prg_ram_size;
   bool                       chr_rom_readonly;
   bool                       prg_ram_persistent;
-  std::filesystem::path      prg_ram_save_path;
 };
 
 class Mapper {

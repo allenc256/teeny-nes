@@ -1,4 +1,5 @@
 #include <SDL.h>
+#include <SDL_filesystem.h>
 #include <chrono>
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
@@ -28,6 +29,13 @@ AppWindow::AppWindow()
 
   ImGui::GetIO().FontGlobalScale = sdl_.scale_factor();
   ImGui::GetStyle().ScaleAllSizes(sdl_.scale_factor());
+
+  char *pref_path_cstr = SDL_GetPrefPath("teeny-nes", "teeny-nes");
+  if (!pref_path_cstr) {
+    throw std::runtime_error("failed to get pref path");
+  }
+  pref_path_ = pref_path_cstr;
+  SDL_free(pref_path_cstr);
 }
 
 void AppWindow::run() {
@@ -72,6 +80,7 @@ void AppWindow::render() {
   }
 
   show_ppu_window_ &= nes_.is_powered_on();
+  show_gg_window_ &= nes_.is_powered_on();
 
   render_imgui();
 
@@ -121,13 +130,14 @@ void AppWindow::render_imgui_menu() {
         timer_.reset();
       }
       if (ImGui::MenuItem("Power Off", nullptr, false, nes_.is_powered_on())) {
-        nes_.power_off();
-        paused_ = false;
+        power_off();
       }
       ImGui::MenuItem(
           "Show PPU Window", nullptr, &show_ppu_window_, nes_.is_powered_on()
       );
-      ImGui::MenuItem("Game Genie", nullptr, &show_gg_window_);
+      ImGui::MenuItem(
+          "Game Genie Codes", nullptr, &show_gg_window_, nes_.is_powered_on()
+      );
       ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();
@@ -138,17 +148,17 @@ void AppWindow::open_rom() {
   nfdu8filteritem_t filters[1] = {{"NES ROMs", "nes"}};
   auto              result     = nfd_.open_dialog(filters, 1);
   if (result.has_value()) {
-    nes_.power_off();
+    power_off();
     nes_.load_cart(*result);
-    nes_.power_on();
-    timer_.reset();
+    rom_name_ = result->stem();
+    power_on();
   }
 }
 
 static constexpr int AUDIO_QUEUE_TARGET = 2048;
 
 void AppWindow::queue_audio() {
-  if (paused_) {
+  if (paused_ || !nes_.is_powered_on()) {
     return;
   }
 
@@ -184,4 +194,47 @@ void AppWindow::queue_audio() {
         std::format("audio failed to queue: {}", SDL_GetError())
     );
   }
+}
+
+static std::filesystem::path make_codes_path(
+    const std::filesystem::path &pref_path, const std::string &rom_name
+) {
+  std::filesystem::path path = pref_path / rom_name;
+  path.replace_extension(".codes");
+  return path;
+}
+
+static std::filesystem::path make_sram_path(
+    const std::filesystem::path &pref_path, const std::string &rom_name
+) {
+  std::filesystem::path path = pref_path / rom_name;
+  path.replace_extension(".sav");
+  return path;
+}
+
+void AppWindow::power_on() {
+  auto codes_path = make_codes_path(pref_path_, rom_name_);
+  gg_window_.load_codes(codes_path);
+
+  auto sram_path = make_sram_path(pref_path_, rom_name_);
+  nes_.cart().load_sram(sram_path);
+
+  nes_.power_on();
+  timer_.reset();
+}
+
+void AppWindow::power_off() {
+  if (!nes_.is_powered_on()) {
+    return;
+  }
+
+  auto codes_path = make_codes_path(pref_path_, rom_name_);
+  gg_window_.save_codes(codes_path);
+
+  auto sram_path = make_sram_path(pref_path_, rom_name_);
+  nes_.cart().save_sram(sram_path);
+
+  nes_.power_off();
+
+  paused_ = false;
 }
