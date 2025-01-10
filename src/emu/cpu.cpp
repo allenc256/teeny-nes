@@ -324,19 +324,11 @@ static constexpr std::array<Cpu::OpCode, 256> init_op_codes() {
   return op_code;
 }
 
-static constexpr std::array<Cpu::OpCode, 256> OP_CODES = init_op_codes();
+static constexpr std::array<Cpu::OpCode, 256> OP_CODES_ARR = init_op_codes();
 
-static constexpr std::string_view INSTRUCTION_NAMES[] = {
-    "ADC", "AND", "ASL", "BCC", "BCS", "BEQ", "BIT", "BMI", "BNE", "BPL", "BRA",
-    "BRK", "BVC", "BVS", "CLC", "CLD", "CLI", "CLV", "CMP", "CPX", "CPY", "DCP",
-    "DEC", "DEX", "DEY", "EOR", "INC", "INX", "INY", "ISB", "JMP", "JSR", "LAX",
-    "LDA", "LDX", "LDY", "LSR", "NOP", "ORA", "PHA", "PHP", "PHX", "PHY", "PLA",
-    "PLP", "PLX", "PLY", "RLA", "ROL", "ROR", "RRA", "RTI", "RTS", "SAX", "SBC",
-    "SEC", "SED", "SEI", "SLO", "SRE", "STA", "STX", "STY", "STZ", "TAX", "TAY",
-    "TRB", "TSB", "TSX", "TXA", "TXS", "TYA", "INV"
-};
+const std::array<Cpu::OpCode, 256> &Cpu::OP_CODES = OP_CODES_ARR;
 
-static constexpr std::string_view ADDR_MODE_NAMES[] = {
+const std::string_view Cpu::ADDR_MODE_NAMES[] = {
     "ABSOLUTE",
     "ABSOLUTE_X",
     "ABSOLUTE_Y",
@@ -351,6 +343,16 @@ static constexpr std::string_view ADDR_MODE_NAMES[] = {
     "ZERO_PAGE_X",
     "ZERO_PAGE_Y",
     "INVALID",
+};
+
+const std::string_view Cpu::INS_NAMES[] = {
+    "ADC", "AND", "ASL", "BCC", "BCS", "BEQ", "BIT", "BMI", "BNE", "BPL", "BRA",
+    "BRK", "BVC", "BVS", "CLC", "CLD", "CLI", "CLV", "CMP", "CPX", "CPY", "DCP",
+    "DEC", "DEX", "DEY", "EOR", "INC", "INX", "INY", "ISB", "JMP", "JSR", "LAX",
+    "LDA", "LDX", "LDY", "LSR", "NOP", "ORA", "PHA", "PHP", "PHX", "PHY", "PLA",
+    "PLP", "PLX", "PLY", "RLA", "ROL", "ROR", "RRA", "RTI", "RTS", "SAX", "SBC",
+    "SEC", "SED", "SEI", "SLO", "SRE", "STA", "STX", "STY", "STZ", "TAX", "TAY",
+    "TRB", "TSB", "TSX", "TXA", "TXS", "TYA", "INV"
 };
 
 Cpu::Cpu()
@@ -1076,9 +1078,7 @@ void Cpu::step_shift_right(const OpCode &op, bool carry) {
 
 void Cpu::step_unimplemented(const OpCode &op) {
   throw std::runtime_error(std::format(
-      "unimplemented instruction: {} (${:02X})",
-      INSTRUCTION_NAMES[op.ins],
-      (int)op.code
+      "unimplemented instruction: {} (${:02X})", INS_NAMES[op.ins], (int)op.code
   ));
 }
 
@@ -1091,7 +1091,3 @@ void Cpu::set_flag(Flags flag, bool value) {
 }
 
 bool Cpu::get_flag(Flags flag) const { return regs_.P & flag; }
-
-const std::array<Cpu::OpCode, 256> &Cpu::all_op_codes() { return OP_CODES; }
-const std::string_view *Cpu::addr_mode_names() { return ADDR_MODE_NAMES; }
-const std::string_view *Cpu::instruction_names() { return INSTRUCTION_NAMES; }

@@ -31,13 +31,10 @@ static void pad_to(std::string &out_str, size_t column) {
 }
 
 static std::string make_nestest_log_line(Cpu &cpu) {
-  using enum Cpu::AddrMode;
-  using enum Cpu::OpCodeFlags;
-
   std::string out_str;
   auto        out_it = std::back_inserter(out_str);
   auto       &regs   = cpu.registers();
-  auto       &op     = Cpu::all_op_codes()[cpu.peek(regs.PC)];
+  auto       &op     = Cpu::OP_CODES[cpu.peek(regs.PC)];
 
   std::format_to(out_it, "{:04X}  ", regs.PC);
 
@@ -53,8 +50,8 @@ static std::string make_nestest_log_line(Cpu &cpu) {
   std::format_to(
       out_it,
       "{}{} ",
-      (op.flags & ILLEGAL) ? '*' : ' ',
-      Cpu::instruction_names()[op.ins]
+      (op.flags & Cpu::ILLEGAL) ? '*' : ' ',
+      Cpu::INS_NAMES[op.ins]
   );
 
   auto format_mem = [&](uint16_t addr) {
@@ -69,9 +66,9 @@ static std::string make_nestest_log_line(Cpu &cpu) {
   };
 
   switch (op.mode) {
-  case ACCUMULATOR: std::format_to(out_it, "A"); break;
-  case IMPLICIT: break;
-  case ABSOLUTE: {
+  case Cpu::ACCUMULATOR: std::format_to(out_it, "A"); break;
+  case Cpu::IMPLICIT: break;
+  case Cpu::ABSOLUTE: {
     uint16_t addr = cpu.decode_addr(op);
     std::format_to(out_it, "${:04X}", addr);
     if (op.ins != Cpu::JSR && op.ins != Cpu::JMP) {
@@ -79,57 +76,57 @@ static std::string make_nestest_log_line(Cpu &cpu) {
     }
     break;
   }
-  case ABSOLUTE_X: {
+  case Cpu::ABSOLUTE_X: {
     uint16_t addr0 = cpu.peek16(regs.PC + 1);
     uint16_t addr1 = addr0 + regs.X;
     std::format_to(out_it, "${:04X},X @ {:04X}", addr0, addr1);
     format_mem(addr1);
     break;
   }
-  case ABSOLUTE_Y: {
+  case Cpu::ABSOLUTE_Y: {
     uint16_t addr0 = cpu.peek16(regs.PC + 1);
     uint16_t addr1 = addr0 + regs.Y;
     std::format_to(out_it, "${:04X},Y @ {:04X}", addr0, addr1);
     format_mem(addr1);
     break;
   }
-  case RELATIVE: {
+  case Cpu::RELATIVE: {
     uint16_t addr = cpu.decode_addr(op);
     std::format_to(out_it, "${:04X}", addr);
     break;
   }
-  case IMMEDIATE: {
+  case Cpu::IMMEDIATE: {
     uint8_t mem = cpu.decode_mem(op);
     std::format_to(out_it, "#${:02X}", mem);
     break;
   }
-  case ZERO_PAGE: {
+  case Cpu::ZERO_PAGE: {
     uint16_t addr = cpu.decode_addr(op);
     std::format_to(out_it, "${:02X}", addr);
     format_mem(addr);
     break;
   }
-  case ZERO_PAGE_X: {
+  case Cpu::ZERO_PAGE_X: {
     uint8_t addr0 = cpu.peek(regs.PC + 1);
     uint8_t addr1 = addr0 + regs.X;
     std::format_to(out_it, "${:02X},X @ {:02X}", addr0, addr1);
     format_mem(addr1);
     break;
   }
-  case ZERO_PAGE_Y: {
+  case Cpu::ZERO_PAGE_Y: {
     uint8_t addr0 = cpu.peek(regs.PC + 1);
     uint8_t addr1 = addr0 + regs.Y;
     std::format_to(out_it, "${:02X},Y @ {:02X}", addr0, addr1);
     format_mem(addr1);
     break;
   }
-  case INDIRECT: {
+  case Cpu::INDIRECT: {
     uint16_t addr0 = cpu.peek16(regs.PC + 1);
     uint16_t addr  = cpu.decode_addr(op);
     std::format_to(out_it, "(${:04X}) = {:04X}", addr0, addr);
     break;
   }
-  case INDIRECT_X: {
+  case Cpu::INDIRECT_X: {
     uint8_t  a     = cpu.peek(regs.PC + 1);
     uint8_t  addr0 = a + regs.X;
     uint16_t addr  = cpu.decode_addr(op);
@@ -137,7 +134,7 @@ static std::string make_nestest_log_line(Cpu &cpu) {
     format_mem(addr);
     break;
   }
-  case INDIRECT_Y: {
+  case Cpu::INDIRECT_Y: {
     uint8_t  a0    = cpu.peek(regs.PC + 1);
     uint8_t  a1    = a0 + 1;
     uint16_t addr0 = (uint16_t)(cpu.peek(a0) + (cpu.peek(a1) << 8));
@@ -149,7 +146,7 @@ static std::string make_nestest_log_line(Cpu &cpu) {
   default:
     throw std::runtime_error(std::format(
         "unsupported addressing mode: {} (${:02X})",
-        Cpu::addr_mode_names()[op.mode],
+        Cpu::ADDR_MODE_NAMES[op.mode],
         op.code
     ));
   }
@@ -276,7 +273,7 @@ TEST_P(SingleStepTests, DISABLED_test_cases) {
 
 static std::vector<uint8_t> valid_op_codes() {
   std::vector<uint8_t> op_codes;
-  for (auto &op : Cpu::all_op_codes()) {
+  for (auto &op : Cpu::OP_CODES) {
     // TODO: handle illegal opcodes in the future
     if (op.ins != Cpu::Instruction::INVALID_INS &&
         !(op.code & Cpu::OpCodeFlags::ILLEGAL)) {

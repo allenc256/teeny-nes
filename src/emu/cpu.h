@@ -145,6 +145,10 @@ public:
     uint8_t     flags       = 0;
   };
 
+  static const std::array<OpCode, 256> &OP_CODES;
+  static const std::string_view         ADDR_MODE_NAMES[];
+  static const std::string_view         INS_NAMES[];
+
   Cpu();
 
   void set_cart(Cart *cart) { cart_ = cart; }
@@ -175,10 +179,6 @@ public:
 
   uint16_t decode_addr(const OpCode &op);
   uint8_t  decode_mem(const OpCode &op);
-
-  static const std::array<OpCode, 256> &all_op_codes();
-  static const std::string_view        *addr_mode_names();
-  static const std::string_view        *instruction_names();
 
 private:
   void step_ADC(const OpCode &op);
