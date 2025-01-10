@@ -36,11 +36,11 @@ AppWindow::AppWindow()
   SDL_free(pref_path_cstr);
 }
 
-static void show_error_dialog(const std::exception &e) {
+static void show_error_dialog(const std::exception &e, SDL_Window *window) {
   auto message =
       std::format("An unexpected exception was thrown: {}", e.what());
   SDL_ShowSimpleMessageBox(
-      SDL_MESSAGEBOX_ERROR, "Unexpected Error", message.c_str(), window_.get()
+      SDL_MESSAGEBOX_ERROR, "Unexpected Error", message.c_str(), window
   );
 }
 
@@ -57,7 +57,7 @@ void AppWindow::run() {
     // Force persistent state to be saved.
     power_off();
   } catch (const std::exception &e) {
-    show_error_dialog(e);
+    show_error_dialog(e, window_.get());
   }
 }
 
