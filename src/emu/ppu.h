@@ -93,101 +93,6 @@ public:
   void step();
 
 private:
-  // PPUCTRL layout
-  // ==============
-  //
-  // 7  bit  0
-  // ---- ----
-  // VPHB SINN
-  // |||| ||||
-  // |||| ||++- Base nametable address
-  // |||| ||    (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
-  // |||| |+--- VRAM address increment per CPU read/write of PPUDATA
-  // |||| |     (0: add 1, going across; 1: add 32, going down)
-  // |||| +---- Sprite pattern table address for 8x8 sprites
-  // ||||       (0: $0000; 1: $1000; ignored in 8x16 mode)
-  // |||+------ Background pattern table address (0: $0000; 1: $1000)
-  // ||+------- Sprite size (0: 8x8 pixels; 1: 8x16 pixels – see PPU OAM#Byte 1)
-  // |+-------- PPU master/slave select
-  // |          (0: read backdrop from EXT pins; 1: output color on EXT pins)
-  // +--------- Vblank NMI enable (0: off, 1: on)
-  static constexpr uint8_t PPUCTRL_NN_ADDR    = 0b00000011;
-  static constexpr uint8_t PPUCTRL_VRAM_INC   = 0b00000100;
-  static constexpr uint8_t PPUCTRL_SPR_ADDR   = 0b00001000;
-  static constexpr uint8_t PPUCTRL_BG_ADDR    = 0b00010000;
-  static constexpr uint8_t PPUCTRL_SPR_SIZE   = 0b00100000;
-  static constexpr uint8_t PPUCTRL_MSTR_SLAVE = 0b01000000;
-  static constexpr uint8_t PPUCTRL_NMI_ENABLE = 0b10000000;
-
-  // PPUMASK layout
-  // ==============
-  //
-  //   7  bit  0
-  // ---- ----
-  // BGRs bMmG
-  // |||| ||||
-  // |||| |||+- Greyscale (0: normal color, 1: greyscale)
-  // |||| ||+-- 1: Show background in leftmost 8 pixels of screen, 0: Hide
-  // |||| |+--- 1: Show sprites in leftmost 8 pixels of screen, 0: Hide
-  // |||| +---- 1: Enable background rendering
-  // |||+------ 1: Enable sprite rendering
-  // ||+------- Emphasize red (green on PAL/Dendy)
-  // |+-------- Emphasize green (red on PAL/Dendy)
-  // +--------- Emphasize blue
-  static constexpr uint8_t PPUMASK_GRAY          = 0b00000001;
-  static constexpr uint8_t PPUMASK_BG_SHOW_LEFT  = 0b00000010;
-  static constexpr uint8_t PPUMASK_SPR_SHOW_LEFT = 0b00000100;
-  static constexpr uint8_t PPUMASK_BG_RENDERING  = 0b00001000;
-  static constexpr uint8_t PPUMASK_SPR_RENDERING = 0b00010000;
-  static constexpr uint8_t PPUMASK_RENDERING     = 0b00011000;
-  static constexpr uint8_t PPUMASK_EMPHASIS      = 0b11100000;
-
-  // PPUSTATUS layout
-  // ================
-  //
-  //   7  bit  0
-  // ---- ----
-  // VSOx xxxx
-  // |||| ||||
-  // |||+-++++- (PPU open bus or 2C05 PPU identifier)
-  // ||+------- Sprite overflow flag
-  // |+-------- Sprite 0 hit flag
-  // +--------- Vblank flag, cleared on read. Unreliable; see below.
-  static constexpr uint8_t PPUSTATUS_SPR_OVF  = 0b00100000;
-  static constexpr uint8_t PPUSTATUS_SPR0_HIT = 0b01000000;
-  static constexpr uint8_t PPUSTATUS_VBLANK   = 0b10000000;
-  static constexpr uint8_t PPUSTATUS_ALL      = 0b11100000;
-
-  static constexpr uint16_t V_COARSE_X     = 0b00000000'00011111;
-  static constexpr uint16_t V_COARSE_Y     = 0b00000011'11100000;
-  static constexpr uint16_t V_NAME_TABLE   = 0b00001100'00000000;
-  static constexpr uint16_t V_NAME_TABLE_H = 0b00000100'00000000;
-  static constexpr uint16_t V_NAME_TABLE_V = 0b00001000'00000000;
-  static constexpr uint16_t V_FINE_Y       = 0b01110000'00000000;
-  static constexpr uint16_t V_HI           = 0b01111111'00000000;
-  static constexpr uint16_t V_LO           = 0b00000000'11111111;
-  static constexpr int      V_COARSE_X_MAX = 31;
-  static constexpr int      V_COARSE_Y_MAX = 29;
-  static constexpr int      V_FINE_Y_MAX   = 7;
-
-  // Sprite attributes
-  // =================
-  //
-  // 76543210
-  // ||||||||
-  // ||||||++- Palette (4 to 7) of sprite
-  // |||+++--- Unimplemented (read 0)
-  // ||+------ Priority (0: in front of background; 1: behind background)
-  // |+------- Flip sprite horizontally
-  // +-------- Flip sprite vertically
-  static constexpr uint8_t SPR_ATTR_PALETTE   = 0b00000011;
-  static constexpr uint8_t SPR_ATTR_PRIO      = 0b00100000;
-  static constexpr uint8_t SPR_ATTR_FLIP_HORZ = 0b01000000;
-  static constexpr uint8_t SPR_ATTR_FLIP_VERT = 0b10000000;
-
-  static constexpr int VISIBLE_FRAME_END   = 240;
-  static constexpr int PRE_RENDER_SCANLINE = 261;
-
   void step_visible_frame();
   void step_pre_render_scanline();
   void step_post_render_scanline();
@@ -237,3 +142,7 @@ private:
   // cycle or frame count so that we can force it to true in tests.
   bool ready_;
 };
+
+inline constexpr int64_t cpu_to_ppu_cycles(int64_t cpu_cycles) {
+  return cpu_cycles * 3;
+}

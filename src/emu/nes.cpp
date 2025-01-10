@@ -1,6 +1,5 @@
 #include <fstream>
 
-#include "src/emu/cycles.h"
 #include "src/emu/nes.h"
 
 Nes::Nes() : powered_on_(false) {

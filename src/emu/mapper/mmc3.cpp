@@ -1,7 +1,6 @@
 #include <cstring>
 
 #include "src/emu/cpu.h"
-#include "src/emu/cycles.h"
 #include "src/emu/mapper/mmc3.h"
 #include "src/emu/ppu.h"
 
