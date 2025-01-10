@@ -44,6 +44,9 @@ void AppWindow::run() {
     queue_audio();
     render();
   }
+
+  // Force persistent state to be saved.
+  power_off();
 }
 
 bool AppWindow::process_events() {
