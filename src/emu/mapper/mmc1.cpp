@@ -1,6 +1,5 @@
 #include <cstring>
 
-#include "src/emu/bits.h"
 #include "src/emu/mapper/mmc1.h"
 
 static constexpr uint8_t SHIFT_REG_RESET_FLAG  = 0b10000000;
