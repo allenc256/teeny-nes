@@ -36,17 +36,29 @@ AppWindow::AppWindow()
   SDL_free(pref_path_cstr);
 }
 
+static void show_error_dialog(const std::exception &e) {
+  auto message =
+      std::format("An unexpected exception was thrown: {}", e.what());
+  SDL_ShowSimpleMessageBox(
+      SDL_MESSAGEBOX_ERROR, "Unexpected Error", message.c_str(), window_.get()
+  );
+}
+
 void AppWindow::run() {
-  SDL_PauseAudioDevice(audio_dev_.get(), 0);
+  try {
+    SDL_PauseAudioDevice(audio_dev_.get(), 0);
 
-  while (process_events()) {
-    step();
-    queue_audio();
-    render();
+    while (process_events()) {
+      step();
+      queue_audio();
+      render();
+    }
+
+    // Force persistent state to be saved.
+    power_off();
+  } catch (const std::exception &e) {
+    show_error_dialog(e);
   }
-
-  // Force persistent state to be saved.
-  power_off();
 }
 
 bool AppWindow::process_events() {
