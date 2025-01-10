@@ -6,6 +6,7 @@
 
 #include "src/emu/cart.h"
 #include "src/emu/mapper/axrom.h"
+#include "src/emu/mapper/cnrom.h"
 #include "src/emu/mapper/mmc1.h"
 #include "src/emu/mapper/mmc3.h"
 #include "src/emu/mapper/nrom.h"
@@ -116,6 +117,7 @@ void Cart::load_cart(const std::filesystem::path &path) {
   case 0: mapper_ = std::make_unique<NRom>(header, mem_); break;
   case 1: mapper_ = std::make_unique<Mmc1>(mem_); break;
   case 2: mapper_ = std::make_unique<UxRom>(header, mem_); break;
+  case 3: mapper_ = std::make_unique<CnRom>(header, mem_); break;
   case 4: mapper_ = std::make_unique<Mmc3>(header, mem_, *cpu_, *ppu_); break;
   case 7: mapper_ = std::make_unique<AxRom>(mem_); break;
   default:
