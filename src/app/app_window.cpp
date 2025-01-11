@@ -54,8 +54,7 @@ void AppWindow::run() {
       render();
     }
 
-    // Force persistent state to be saved.
-    power_off();
+    save_rom_state();
   } catch (const std::exception &e) {
     show_error_dialog(e, window_.get());
   }
@@ -139,6 +138,9 @@ void AppWindow::render_imgui_menu() {
       if (prev_paused && !paused_) {
         timer_.reset();
       }
+      if (ImGui::MenuItem("Reset", nullptr, false, nes_.is_powered_on())) {
+        reset();
+      }
       if (ImGui::MenuItem("Power Off", nullptr, false, nes_.is_powered_on())) {
         power_off();
       }
@@ -204,6 +206,33 @@ void AppWindow::queue_audio() {
   }
 }
 
+void AppWindow::power_on() {
+  if (nes_.is_powered_on()) {
+    return;
+  }
+  load_rom_state();
+  nes_.power_on();
+  timer_.reset();
+}
+
+void AppWindow::power_off() {
+  if (!nes_.is_powered_on()) {
+    return;
+  }
+  save_rom_state();
+  nes_.power_off();
+  paused_ = false;
+}
+
+void AppWindow::reset() {
+  if (!nes_.is_powered_on()) {
+    return;
+  }
+  save_rom_state();
+  nes_.reset();
+  paused_ = false;
+}
+
 static std::filesystem::path make_codes_path(
     const std::filesystem::path &pref_path, const std::string &rom_name
 ) {
@@ -220,18 +249,7 @@ static std::filesystem::path make_sram_path(
   return path;
 }
 
-void AppWindow::power_on() {
-  auto codes_path = make_codes_path(pref_path_, rom_name_);
-  gg_window_.load_codes(codes_path);
-
-  auto sram_path = make_sram_path(pref_path_, rom_name_);
-  nes_.cart().load_sram(sram_path);
-
-  nes_.power_on();
-  timer_.reset();
-}
-
-void AppWindow::power_off() {
+void AppWindow::save_rom_state() {
   if (!nes_.is_powered_on()) {
     return;
   }
@@ -241,8 +259,16 @@ void AppWindow::power_off() {
 
   auto sram_path = make_sram_path(pref_path_, rom_name_);
   nes_.cart().save_sram(sram_path);
+}
 
-  nes_.power_off();
+void AppWindow::load_rom_state() {
+  if (!nes_.is_powered_on()) {
+    return;
+  }
 
-  paused_ = false;
+  auto codes_path = make_codes_path(pref_path_, rom_name_);
+  gg_window_.load_codes(codes_path);
+
+  auto sram_path = make_sram_path(pref_path_, rom_name_);
+  nes_.cart().load_sram(sram_path);
 }

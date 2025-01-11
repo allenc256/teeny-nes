@@ -31,6 +31,10 @@ private:
 
   void power_on();
   void power_off();
+  void reset();
+
+  void save_rom_state();
+  void load_rom_state();
 
   Nes                nes_;
   KeyboardController keyboard_;
