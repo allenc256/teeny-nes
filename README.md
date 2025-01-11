@@ -1,6 +1,6 @@
 # teeny-nes
 
-A cross-platform Nintendo emulator, written using C++, [SDL2](https://github.com/libsdl-org/SDL), and [ImGui](https://github.com/ocornut/imgui). This emulator was written for entertainment purposes, a trip down memory lane.
+A cross-platform Nintendo emulator, written using C++, [SDL2](https://github.com/libsdl-org/SDL), and [ImGui](https://github.com/ocornut/imgui). This emulator was written for entertainment purposes, a trip down memory lane...
 
 # Features
 
@@ -29,6 +29,7 @@ Building this emulator requires:
 * C++ compiler w/ C++20 support. The following have been tested:
   - GCC 13.3.0 (Ubuntu 24.04.1 LTS)
   - Clang 18.1.3 (Ubuntu 24.04.1 LTS)
+  - Clang 15.0.0 (Apple Darwin)
 
 Build using CMake (from root checkout directory):
 
@@ -110,7 +111,16 @@ The following games have been tested (this is not a comprehensive list and the l
 
 The majority of mappers for American-released Nintendo games have been implemented. In particular, these are iNES mappers 0 (NROM), 1 (MMC1), 2 (UxROM), 3 (CNROM), 4 (MMC3), and 7 (AxROM). There are large number of mappers which cover Japanese releases on the Famicom (notable examples would be the Konami VRC mappers) that are unsupported. There are two notable exceptions for American-released Nintendo game mappers that have not been implemented (yet):
 
-| Mapper | Notes |
-| ------ | ----- |
-| MMC2   | This mapper was built specifically for Mike Tyson's Punch-Out. |
-| MMC5   | The most notable game using this mapper is Castlevania 3, but there are a few other American releases using this mapper as noted here: https://nescartdb.com/search/advanced?ines=5 |
+* MMC2 - this mapper was built specifically for Mike Tyson's Punch-Out.
+* MMC5 - the most notable game using this mapper is Castlevania 3, but there are a few other American releases using this mapper as noted here: https://nescartdb.com/search/advanced?ines=5.
+* Additionally, only the most common variants of the mappers are implemented. For instance, MMC6 (technically a submapper of iNES mapper 4) is not supported.
+
+# Technical Notes
+
+* The 6502 CPU emulation is instruction-level (i.e., generally speaking, one emulation "step" processes one instruction), while the PPU and APU are emulated at cycle-level. PPU and APU cycles are synchronized to the CPU via [Catch-up](https://www.nesdev.org/wiki/Catch-up).
+  - It would be an improvement to move the CPU emulation to cycle-level, but this would make the CPU emulation code significantly more complex, and it's unclear to me how much this would benefit compatibility.
+  - Illegal opcodes are for the most part NOT implemented, as very few commercial games use them.
+* Audio (APU) emulation follows the description given by Disch in the following nesdev.org forum post: https://forums.nesdev.org/viewtopic.php?f=3&t=13767.
+  - Audio is synchronized to the video by *dynamically* adjusting the sampling rate up or down to try to maintain a constant-length audio queue. Rationale for this approach is described in https://forums.nesdev.org/viewtopic.php?f=3&t=11612.
+* Graphics (PPU) emulation is cycle-level. For instance, PPU emulation is accurate enough to reproduce graphical glitches such as those described in https://www.youtube.com/watch?v=o9Ohvi10sM0. 
+  - Emulation is implemented using C++20 coroutines, as they give a straightforward code representation of the somewhat complex state machine driving the PPU. The downside of the coroutine-based approach, however, is that save states would be harder to add to the emulator (as the contents of the coroutine frame are opaque / not ABI-stable across compilers).
