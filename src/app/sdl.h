@@ -53,6 +53,8 @@ void clear_texture(SDL_Texture *texture, int height);
 
 class SDLAudioDeviceRes {
 public:
+  static constexpr int OUTPUT_RATE = 44100;
+
   SDLAudioDeviceRes();
   ~SDLAudioDeviceRes();
 

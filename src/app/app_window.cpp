@@ -187,10 +187,11 @@ void AppWindow::queue_audio() {
   // Dynamically adjust sample rate per ideas in this thread:
   // https://forums.nesdev.org/viewtopic.php?f=3&t=11612.
   int queued = (int)(SDL_GetQueuedAudioSize(audio_dev_.get()) / sizeof(float));
+  constexpr int rate_eps = 100;
   if (queued > AUDIO_QUEUE_TARGET) {
-    nes_.apu().set_sample_rate(44000);
+    nes_.apu().set_sample_rate(SDLAudioDeviceRes::OUTPUT_RATE - rate_eps);
   } else {
-    nes_.apu().set_sample_rate(44200);
+    nes_.apu().set_sample_rate(SDLAudioDeviceRes::OUTPUT_RATE + rate_eps);
   }
 
   // if (queued == 0) {

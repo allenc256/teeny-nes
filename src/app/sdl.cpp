@@ -90,7 +90,7 @@ void clear_texture(SDL_Texture *texture, int height) {
 SDLAudioDeviceRes::SDLAudioDeviceRes() {
   SDL_AudioSpec audio_spec;
   SDL_zero(audio_spec);
-  audio_spec.freq     = 44100;
+  audio_spec.freq     = OUTPUT_RATE;
   audio_spec.format   = AUDIO_F32SYS;
   audio_spec.channels = 1;
   audio_spec.samples  = 1024;
