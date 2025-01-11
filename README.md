@@ -7,7 +7,7 @@ A cross-platform Nintendo emulator, written using C++, [SDL2](https://github.com
 * Full NTSC NES emulation, including cycle-accurate graphics (PPU) and sound (APU).
 * A small (teeny?) and simple codebase --- straightforward code has been prioritized over all else.
 * A relatively high level of emulation accuracy and game compatibility (see [Compatibility](#Compatibility) section below).
-* Support for most major American game mappers (see [Compatibility](#Unimplemented-Mappers) for non-emulated games).
+* Support for most major American-released games (see [Compatibility](#Unimplemented-Mappers)).
 * Game Genie support (useful for testing!).
 
 # Building
@@ -31,7 +31,10 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 ```
 
-Where the CMake build type should be as appropriate (e.g., `Debug` for debug builds).
+Where the CMake build type should be as appropriate (e.g., `Debug` for debug builds). The above builds two executable targets:
+
+* `teenynes` - this is the emulator application itself.
+* `teenynes_test` - this is the emulator test suite.
 
 # Controls
 
@@ -97,7 +100,7 @@ The following games have been tested (this is not a comprehensive list and the l
 
 ### Unimplemented Mappers
 
-The majority of mappers for American-released Nintendo games have been implemented. There are large number of mappers which cover Japanese releases on the Famicom (such as, the Konami VRC mappers) that are unsupported. There are two notable exceptions for American-released Nintendo game mappers that have not been implemented (yet):
+The majority of mappers for American-released Nintendo games have been implemented. In particular, these are iNES mappers 0 (NROM), 1 (MMC1), 2 (UxROM), 3 (CNROM), 4 (MMC3), and 7 (AxROM). There are large number of mappers which cover Japanese releases on the Famicom (notable examples would be the Konami VRC mappers) that are unsupported. There are two notable exceptions for American-released Nintendo game mappers that have not been implemented (yet):
 
 | Mapper | Notes |
 | ------ | ----- |
