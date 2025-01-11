@@ -10,9 +10,13 @@ A cross-platform Nintendo emulator, written using C++, [SDL2](https://github.com
 * Support for most major American-released games (see [Compatibility](#Unimplemented-Mappers)).
 * Game Genie support (useful for testing!).
 
-# Screenshots
+# Sample Screencasts
 
-<video src="https://github.com/user-attachments/assets/d657f1d7-0244-435f-8360-fa8490a0fb85" width="300" />
+https://github.com/user-attachments/assets/3fba3c5e-378a-4864-a7f0-723719553716
+
+https://github.com/user-attachments/assets/6399a7f2-2247-467e-a11b-3c4fcb684627
+
+https://github.com/user-attachments/assets/6b893041-3a27-4018-8e71-4b0ec0c9d4be
 
 # Building
 
