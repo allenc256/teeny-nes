@@ -105,7 +105,7 @@ The following games have been tested (this is not a comprehensive list and the l
 | TMNT                          | ✅            |       |
 | TMNT 2                        | ✅            |       |
 | Zelda                         | ✅            |       |
-| Battletoads                   | ❌            | Crashes on 2nd level. Fixing this requires tightening CPU/PPU timing, as per https://www.nesdev.org/wiki/Tricky-to-emulate_games and https://forums.nesdev.org/viewtopic.php?t=6736). |
+| Battletoads                   | ❌            | Crashes on 2nd level. Fixing this requires tightening CPU/PPU timing, as per https://www.nesdev.org/wiki/Tricky-to-emulate_games, https://www.nesdev.org/wiki/PPU_registers#Rendering_control, and https://forums.nesdev.org/viewtopic.php?t=6736). |
 
 ### Unimplemented Mappers
 
