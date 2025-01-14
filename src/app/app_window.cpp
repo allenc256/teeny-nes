@@ -263,9 +263,7 @@ void AppWindow::save_rom_state() {
 }
 
 void AppWindow::load_rom_state() {
-  if (!nes_.is_powered_on()) {
-    return;
-  }
+  assert(!nes_.is_powered_on());
 
   auto codes_path = make_codes_path(pref_path_, rom_name_);
   gg_window_.load_codes(codes_path);
