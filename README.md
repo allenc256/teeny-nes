@@ -67,45 +67,51 @@ Only the keyboard and a single controller is supported.
 The following games have been tested (this is not a comprehensive list and the list of games which fully work is likely much longer):
 
 
-| Game                          | Compatibility | Notes |
-| ----------------------------- | ------------- | ----- |
-| 1942                          | ✅            |       |
-| Bionic Commando               | ✅            |       |
-| Blades of Steel               | ✅            |       |
-| Blaster Master                | ✅            |       |
-| Castlevania                   | ✅            |       |
-| Castlevania 2                 | ✅            |       |
-| Contra                        | ✅            |       |
-| Donkey Kong                   | ✅            |       |
-| Double Dragon 2               | ✅            |       |
-| Double Dragon 3               | ✅            |       |
-| Faxanadu                      | ✅            |       |
-| Final Fantasy                 | ✅            |       |
-| Ghosts N Goblins              | ✅            |       |
-| Gradius                       | ✅            |       |
-| Guardian Legend               | ✅            |       |
-| Ice Climber                   | ✅            |       |
-| Ikari Warriors                | ✅            |       |
-| Life Force                    | ✅            |       |
-| Little Nemo: The Dream Master | ✅            |       |
-| Marble Madness                | ✅            | Minor visual artifacts around text boxes at beginning of  certain levels. Fixing this requires tightening PPU/CPU timing, see https://www.nesdev.org/wiki/Tricky-to-emulate_games. |
-| Mario                         | ✅            |       |
-| Mario 2                       | ✅            |       |
-| Mario 3                       | ✅            |       |
-| Mega Man                      | ✅            |       |
-| Mega Man 2                    | ✅            |       |
-| Mega Man 3                    | ✅            |       |
-| Metroid                       | ✅            |       |
-| Ninja Gaiden                  | ✅            |       |
-| Ninja Gaiden 2                | ✅            |       |
-| Pinball                       | ✅            |       |
-| Solstice                      | ✅            |       |
-| Super Dodge Ball              | ✅            |       |
-| Tetris                        | ✅            |       |
-| TMNT                          | ✅            |       |
-| TMNT 2                        | ✅            |       |
-| Zelda                         | ✅            |       |
-| Battletoads                   | ❌            | Crashes on 2nd level. Fixing this requires tightening CPU/PPU timing, as per https://www.nesdev.org/wiki/Tricky-to-emulate_games, https://www.nesdev.org/wiki/PPU_registers#Rendering_control, and https://forums.nesdev.org/viewtopic.php?t=6736). |
+| Game                          | Compatibility |
+| ----------------------------- | ------------- |
+| 1942                          | ✅ |
+| Bionic Commando               | ✅ |
+| Blades of Steel               | ✅ |
+| Blaster Master                | ✅ |
+| Castlevania                   | ✅ |
+| Castlevania 2                 | ✅ |
+| Contra                        | ✅ |
+| Donkey Kong                   | ✅ |
+| Double Dragon 2               | ✅ |
+| Double Dragon 3               | ✅ |
+| Faxanadu                      | ✅ |
+| Final Fantasy                 | ✅ |
+| Ghosts N Goblins              | ✅ |
+| Gradius                       | ✅ |
+| Guardian Legend               | ✅ |
+| Ice Climber                   | ✅ |
+| Ikari Warriors                | ✅ |
+| Life Force                    | ✅ |
+| Little Nemo: The Dream Master | ✅ |
+| Marble Madness                | ✅ (see Footnote 1) |
+| Mario                         | ✅ |
+| Mario 2                       | ✅ |
+| Mario 3                       | ✅ |
+| Mega Man                      | ✅ |
+| Mega Man 2                    | ✅ |
+| Mega Man 3                    | ✅ |
+| Metroid                       | ✅ |
+| Ninja Gaiden                  | ✅ |
+| Ninja Gaiden 2                | ✅ |
+| Pinball                       | ✅ |
+| Solstice                      | ✅ |
+| Super Dodge Ball              | ✅ |
+| Tetris                        | ✅ |
+| TMNT                          | ✅ |
+| TMNT 2                        | ✅ |
+| Zelda                         | ✅ |
+| Battletoads                   | ❌ (see Footnote 2) |
+
+Footnotes:
+
+1. Minor visual artifacts around text boxes at beginning of  certain levels. Fixing this requires tightening PPU/CPU timing, see https://www.nesdev.org/wiki/Tricky-to-emulate_games.
+
+2. Crashes on 2nd level. Fixing this requires tightening CPU/PPU timing, as per https://www.nesdev.org/wiki/Tricky-to-emulate_games, https://www.nesdev.org/wiki/PPU_registers#Rendering_control, and https://forums.nesdev.org/viewtopic.php?t=6736).
 
 ### Unimplemented Mappers
 
