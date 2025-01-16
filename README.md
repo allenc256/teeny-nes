@@ -12,7 +12,7 @@ A cross-platform Nintendo emulator, written using C++, [SDL2](https://github.com
 
 # Sample Screencasts
 
-https://github.com/user-attachments/assets/3fba3c5e-378a-4864-a7f0-723719553716
+https://github.com/user-attachments/assets/a521bc8f-b943-4056-8c9e-a534295c316d
 
 https://github.com/user-attachments/assets/6399a7f2-2247-467e-a11b-3c4fcb684627
 
