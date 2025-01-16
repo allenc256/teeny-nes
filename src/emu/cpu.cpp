@@ -355,6 +355,34 @@ const std::string_view Cpu::INS_NAMES[] = {
     "TRB", "TSB", "TSX", "TXA", "TXS", "TYA", "INV"
 };
 
+static constexpr uint16_t STACK_START  = 0x0100;
+static constexpr uint16_t RAM_END      = 0x2000;
+static constexpr uint16_t RAM_MASK     = 0x07ff;
+static constexpr uint16_t RESET_VECTOR = 0xfffc;
+static constexpr int      RESET_CYCLES = 7;
+static constexpr uint16_t NMI_VECTOR   = 0xfffa;
+static constexpr uint16_t IRQ_VECTOR   = 0xfffe;
+static constexpr int      IRQ_CYCLES   = 7;
+
+// N.B., NMI cycles is set to 14 as per
+// https://forums.nesdev.org/viewtopic.php?t=12470&start=15. This makes Marble
+// Madness and Battletoads work.
+static constexpr int NMI_CYCLES = 14;
+
+static constexpr uint16_t PPU_PPUCTRL   = 0x2000;
+static constexpr uint16_t PPU_PPUMASK   = 0x2001;
+static constexpr uint16_t PPU_PPUSTATUS = 0x2002;
+static constexpr uint16_t PPU_OAMADDR   = 0x2003;
+static constexpr uint16_t PPU_OAMDATA   = 0x2004;
+static constexpr uint16_t PPU_PPUSCROLL = 0x2005;
+static constexpr uint16_t PPU_PPUADDR   = 0x2006;
+static constexpr uint16_t PPU_PPUDATA   = 0x2007;
+static constexpr uint16_t PPU_REGS_END  = 0x4000;
+static constexpr uint16_t PPU_OAMDMA    = 0x4014;
+
+static constexpr uint16_t IO_JOY1 = 0x4016;
+static constexpr uint16_t IO_JOY2 = 0x4017;
+
 Cpu::Cpu()
     : cart_(nullptr),
       ppu_(nullptr),
@@ -371,7 +399,10 @@ void Cpu::power_on() {
   regs_.S          = 0xfd;
   regs_.P          = I_FLAG | DUMMY_FLAG;
   nmi_pending_     = false;
+  nmi_delay_       = 0;
   irq_pending_     = 0;
+  irq_delay_       = 0;
+  irq_delay_prev_  = false;
   oam_dma_pending_ = false;
   cycles_          = RESET_CYCLES;
   std::memset(ram_, 0, sizeof(ram_));
@@ -382,7 +413,10 @@ void Cpu::reset() {
   regs_.S -= 3;
   regs_.P |= I_FLAG;
   nmi_pending_     = false;
+  nmi_delay_       = 0;
   irq_pending_     = 0;
+  irq_delay_       = 0;
+  irq_delay_prev_  = false;
   oam_dma_pending_ = false;
   cycles_          = RESET_CYCLES;
 }
@@ -500,6 +534,11 @@ uint16_t Cpu::pop16() {
   return (uint16_t)(lo + (hi << 8));
 }
 
+void Cpu::signal_NMI() {
+  nmi_pending_ = true;
+  nmi_delay_   = 1;
+}
+
 void Cpu::step() {
   if (oam_dma_pending_) {
     step_OAM_DMA();
@@ -516,9 +555,15 @@ void Cpu::step() {
     return;
   }
 
-  if (irq_pending_ && !get_flag(I_FLAG)) {
-    // TODO: nesdev says the effect of clearing this flag is delayed 1 cycle for
-    // certain instructions (SEI, CLI, or PLP).
+  bool irq_enabled;
+  if (irq_delay_ > 0) {
+    irq_delay_--;
+    irq_enabled = !irq_delay_prev_;
+  } else {
+    irq_enabled = !get_flag(I_FLAG);
+  }
+
+  if (irq_pending_ && irq_enabled) {
     step_IRQ();
     cycles_ += IRQ_CYCLES;
     irq_pending_ = 0;
@@ -747,12 +792,16 @@ void Cpu::step_BRK([[maybe_unused]] const OpCode &op) {
 
 void Cpu::step_BVC(const OpCode &op) { step_branch(op, !(regs_.P & V_FLAG)); }
 void Cpu::step_BVS(const OpCode &op) { step_branch(op, regs_.P & V_FLAG); }
-
 void Cpu::step_CLC([[maybe_unused]] const OpCode &op) { regs_.P &= ~C_FLAG; }
 void Cpu::step_CLD([[maybe_unused]] const OpCode &op) { regs_.P &= ~D_FLAG; }
-void Cpu::step_CLI([[maybe_unused]] const OpCode &op) { regs_.P &= ~I_FLAG; }
-void Cpu::step_CLV([[maybe_unused]] const OpCode &op) { regs_.P &= ~V_FLAG; }
 
+void Cpu::step_CLI([[maybe_unused]] const OpCode &op) {
+  irq_delay_      = 1;
+  irq_delay_prev_ = get_flag(I_FLAG);
+  regs_.P &= ~I_FLAG;
+}
+
+void Cpu::step_CLV([[maybe_unused]] const OpCode &op) { regs_.P &= ~V_FLAG; }
 void Cpu::step_CMP(const OpCode &op) { step_compare(op, regs_.A); }
 void Cpu::step_CPX(const OpCode &op) { step_compare(op, regs_.X); }
 void Cpu::step_CPY(const OpCode &op) { step_compare(op, regs_.Y); }
@@ -865,8 +914,9 @@ void Cpu::step_PLA([[maybe_unused]] const OpCode &op) {
 void Cpu::step_PLP([[maybe_unused]] const OpCode &op) {
   constexpr uint8_t mask = 0b11001111;
   uint8_t           mem  = pop();
-  // TODO: delay setting I_FLAG by one instruction?
-  regs_.P = (mem & mask) | (regs_.P & ~mask);
+  irq_delay_             = 1;
+  irq_delay_prev_        = get_flag(I_FLAG);
+  regs_.P                = (mem & mask) | (regs_.P & ~mask);
 }
 
 void Cpu::step_PLX([[maybe_unused]] const OpCode &op) {
@@ -921,7 +971,12 @@ void Cpu::step_SBC(const OpCode &op) {
 
 void Cpu::step_SEC([[maybe_unused]] const OpCode &op) { regs_.P |= C_FLAG; }
 void Cpu::step_SED([[maybe_unused]] const OpCode &op) { regs_.P |= D_FLAG; }
-void Cpu::step_SEI([[maybe_unused]] const OpCode &op) { regs_.P |= I_FLAG; }
+
+void Cpu::step_SEI([[maybe_unused]] const OpCode &op) {
+  irq_delay_      = 1;
+  irq_delay_prev_ = get_flag(I_FLAG);
+  regs_.P |= I_FLAG;
+}
 
 void Cpu::step_SLO(const OpCode &op) {
   step_ASL(op);

@@ -282,11 +282,7 @@ uint8_t Ppu::read_PPUSTATUS() {
   return r;
 }
 
-uint8_t Ppu::read_OAMDATA() {
-  // TODO: nesdev.org says reads during vertical or forced blanking return the
-  // value from OAM at that address. What does that mean?
-  return oam_[regs_.OAMADDR];
-}
+uint8_t Ppu::read_OAMDATA() { return oam_[regs_.OAMADDR]; }
 
 uint8_t Ppu::read_PPUDATA() {
   uint8_t result = regs_.PPUDATA;
@@ -494,7 +490,6 @@ void Ppu::draw_dot() {
       // Sprite 0 hit cannot happen on x = 255 for obscure reasons.
       // See https://www.nesdev.org/wiki/PPU_OAM#Sprite_0_hits
       if (spr0_rendered && x != 255) {
-        // TODO: nesdev says sprite 0 hit cannot happen on x=0..7 if clipping
         regs_.PPUSTATUS |= PPUSTATUS_SPR0_HIT;
       }
       if (spr_behind || pat == 0) {

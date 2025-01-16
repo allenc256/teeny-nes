@@ -70,6 +70,7 @@ The following games have been tested (this is not a comprehensive list and the l
 | Game                          | Compatibility |
 | ----------------------------- | ------------- |
 | 1942                          | ✅ |
+| Battletoads                   | ✅ |
 | Bionic Commando               | ✅ |
 | Blades of Steel               | ✅ |
 | Blaster Master                | ✅ |
@@ -88,7 +89,7 @@ The following games have been tested (this is not a comprehensive list and the l
 | Ikari Warriors                | ✅ |
 | Life Force                    | ✅ |
 | Little Nemo: The Dream Master | ✅ |
-| Marble Madness                | ✅ (see Footnote 1) |
+| Marble Madness                | ✅ |
 | Mario                         | ✅ |
 | Mario 2                       | ✅ |
 | Mario 3                       | ✅ |
@@ -105,13 +106,6 @@ The following games have been tested (this is not a comprehensive list and the l
 | TMNT                          | ✅ |
 | TMNT 2                        | ✅ |
 | Zelda                         | ✅ |
-| Battletoads                   | ❌ (see Footnote 2) |
-
-Footnotes:
-
-1. Minor visual artifacts around text boxes at beginning of  certain levels. Fixing this requires tightening PPU/CPU timing, see https://www.nesdev.org/wiki/Tricky-to-emulate_games.
-
-2. Crashes on 2nd level. Fixing this requires tightening CPU/PPU timing, as per https://www.nesdev.org/wiki/Tricky-to-emulate_games, https://www.nesdev.org/wiki/PPU_registers#Rendering_control, and https://forums.nesdev.org/viewtopic.php?t=6736).
 
 ### Unimplemented Mappers
 

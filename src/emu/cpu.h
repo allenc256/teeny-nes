@@ -168,7 +168,7 @@ public:
   uint8_t  pop();
   uint16_t pop16();
 
-  void signal_NMI() { nmi_pending_ = true; }
+  void signal_NMI();
   void signal_IRQ(IrqSource source) { irq_pending_ |= source; }
   void clear_IRQ(IrqSource source) { irq_pending_ &= ~source; }
   bool pending_IRQ(IrqSource source) { return irq_pending_ & source; }
@@ -266,30 +266,6 @@ private:
   void set_flag(Flags flag, bool value);
   bool get_flag(Flags flag) const;
 
-  static constexpr uint16_t STACK_START  = 0x0100;
-  static constexpr uint16_t RAM_END      = 0x2000;
-  static constexpr uint16_t RAM_MASK     = 0x07ff;
-  static constexpr uint16_t RESET_VECTOR = 0xfffc;
-  static constexpr int      RESET_CYCLES = 7;
-  static constexpr uint16_t NMI_VECTOR   = 0xfffa;
-  static constexpr int      NMI_CYCLES   = 7;
-  static constexpr uint16_t IRQ_VECTOR   = 0xfffe;
-  static constexpr int      IRQ_CYCLES   = 7;
-
-  static constexpr uint16_t PPU_PPUCTRL   = 0x2000;
-  static constexpr uint16_t PPU_PPUMASK   = 0x2001;
-  static constexpr uint16_t PPU_PPUSTATUS = 0x2002;
-  static constexpr uint16_t PPU_OAMADDR   = 0x2003;
-  static constexpr uint16_t PPU_OAMDATA   = 0x2004;
-  static constexpr uint16_t PPU_PPUSCROLL = 0x2005;
-  static constexpr uint16_t PPU_PPUADDR   = 0x2006;
-  static constexpr uint16_t PPU_PPUDATA   = 0x2007;
-  static constexpr uint16_t PPU_REGS_END  = 0x4000;
-  static constexpr uint16_t PPU_OAMDMA    = 0x4014;
-
-  static constexpr uint16_t IO_JOY1 = 0x4016;
-  static constexpr uint16_t IO_JOY2 = 0x4017;
-
   uint8_t   ram_[2 * 1024];
   Registers regs_;
   Cart     *cart_;
@@ -300,7 +276,10 @@ private:
   bool      oops_;
   bool      jump_;
   bool      nmi_pending_;
+  uint8_t   nmi_delay_;
   uint8_t   irq_pending_;
+  uint8_t   irq_delay_;
+  bool      irq_delay_prev_;
   bool      oam_dma_pending_;
   uint8_t  *test_ram_; // single-step tests
 };
