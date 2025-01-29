@@ -56,12 +56,12 @@ private:
 
 class ApuTriangle {
 public:
-  void  power_on();
-  void  reset();
-  void  step();
-  void  clock_quarter_frame();
-  void  clock_half_frame();
-  float output();
+  void    power_on();
+  void    reset();
+  void    step();
+  void    clock_quarter_frame();
+  void    clock_half_frame();
+  uint8_t output(bool odd_cycle);
 
   uint8_t length_counter() const { return length_counter_; }
   void    set_enabled(bool enabled);
